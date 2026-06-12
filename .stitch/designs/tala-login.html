@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Tala - Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;650;700&amp;family=Newsreader:wght@600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-background": "#1c1c18",
+                        "surface-container-highest": "#e6e2db",
+                        "on-secondary-container": "#0b7052",
+                        "tertiary-fixed": "#ffdbce",
+                        "secondary-fixed": "#9df4ce",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed-variant": "#00513a",
+                        "secondary-fixed-dim": "#81d7b2",
+                        "surface-dim": "#dddad3",
+                        "inverse-primary": "#cbc5c0",
+                        "outline": "#7c766e",
+                        "outline-warm": "#8b8173",
+                        "on-primary-fixed": "#1d1b18",
+                        "surface-tint": "#615e5a",
+                        "on-error": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface": "#fdf9f2",
+                        "background": "#fdf9f2",
+                        "on-primary-fixed-variant": "#494642",
+                        "on-surface": "#1c1c18",
+                        "surface-indigo": "#2d2a7a",
+                        "tertiary": "#000000",
+                        "on-surface-variant": "#5a534a",
+                        "on-primary-container": "#87837f",
+                        "surface-container-high": "#ebe8e1",
+                        "on-primary": "#ffffff",
+                        "surface-bright": "#fdf9f2",
+                        "surface-container-low": "#f7f3ec",
+                        "surface-container": "#f1ede6",
+                        "primary": "#000000",
+                        "outline-variant": "#cdc5bc",
+                        "primary-container": "#1d1b18",
+                        "error-vermilion": "#b42318",
+                        "inverse-surface": "#31302c",
+                        "on-tertiary-fixed": "#370e00",
+                        "on-tertiary-container": "#d26431",
+                        "tertiary-fixed-dim": "#ffb598",
+                        "on-tertiary-fixed-variant": "#7e2c00",
+                        "tertiary-container": "#370e00",
+                        "primary-fixed-dim": "#cbc5c0",
+                        "inverse-on-surface": "#f4f0e9",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-fixed": "#002115",
+                        "secondary": "#006c4e",
+                        "error-container": "#ffdad6",
+                        "primary-fixed": "#e8e1dc",
+                        "error": "#ba1a1a",
+                        "surface-variant": "#e6e2db",
+                        "secondary-container": "#9af1cb",
+                        "surface-container-lowest": "#ffffff"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    spacing: {
+                        "xs": "6px",
+                        "md": "12px",
+                        "xl": "24px",
+                        "gutter-mobile": "12px",
+                        "lg": "16px",
+                        "base": "4px",
+                        "sm": "8px",
+                        "margin-mobile": "16px"
+                    },
+                    fontFamily: {
+                        "body-lg": ["Inter"],
+                        "headline-xl": ["Newsreader"],
+                        "headline-lg-mobile": ["Newsreader"],
+                        "headline-lg": ["Newsreader"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-md": ["Newsreader"],
+                        "body-md": ["Inter"]
+                    },
+                    fontSize: {
+                        "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+                        "headline-xl": ["32px", { lineHeight: "38px", fontWeight: "600" }],
+                        "headline-lg-mobile": ["24px", { lineHeight: "28px", fontWeight: "600" }],
+                        "headline-lg": ["26px", { lineHeight: "32px", fontWeight: "600" }],
+                        "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "650" }],
+                        "label-sm": ["11px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "700" }],
+                        "headline-md": ["21px", { lineHeight: "28px", fontWeight: "600" }],
+                        "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-background min-h-screen flex flex-col font-body-lg">
+<header class="flex justify-between items-center px-margin-mobile py-md w-full max-w-[768px] mx-auto fixed top-0 w-full bg-surface">
+<div class="flex items-center gap-xs text-primary">
+<span class="material-symbols-outlined font-headline-lg-mobile text-headline-lg-mobile" style="font-variation-settings: 'FILL' 1;">account_balance</span>
+<span class="font-headline-lg-mobile text-headline-lg-mobile font-bold tracking-tight">Tala</span>
+</div>
+<div class="text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
+            local issue hub
+        </div>
+</header>
+<main class="flex-grow flex flex-col justify-center px-margin-mobile max-w-[480px] mx-auto w-full pt-24 pb-12">
+<div class="mb-xl">
+<h1 class="font-headline-xl text-headline-xl text-primary mb-md">Welcome to Tala</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                Coordinate with humans and AI agents in one shared issue model. Identify with a username to begin; no password required.
+            </p>
+</div>
+<form class="bg-surface-container-low rounded-lg p-lg shadow-[0_4px_12px_rgba(25,23,20,0.08)] border border-outline-variant mb-lg flex flex-col gap-lg">
+<div class="flex flex-col gap-xs">
+<label class="font-label-md text-label-md text-primary uppercase tracking-widest" for="username">Username</label>
+<input class="bg-surface-bright border border-outline-variant rounded-DEFAULT px-md py-sm font-body-lg text-body-lg text-primary focus:outline-none focus:border-outline-warm focus:ring-1 focus:ring-outline-warm transition-colors w-full" id="username" name="username" placeholder="e.g. jdoe_ops" required="" type="text"/>
+</div>
+<button class="w-full bg-primary text-on-primary font-label-md text-label-md py-md rounded-DEFAULT hover:opacity-90 transition-opacity flex justify-center items-center gap-xs uppercase tracking-wider" type="button">
+                Continue
+                <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+<p class="font-label-sm text-label-sm text-on-surface-variant text-center opacity-80">
+                Your username is stored locally in this browser for REST mutations.
+            </p>
+</form>
+<div class="flex flex-col gap-sm">
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-md flex items-center justify-between opacity-70">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline-warm">view_kanban</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Triage board</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-[16px]">chevron_right</span>
+</div>
+<div class="flex gap-sm">
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-md flex items-center justify-between opacity-70 flex-1">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline-warm">account_tree</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Hierarchy planning</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-md flex items-center justify-between opacity-70 flex-1">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline-warm">block</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Blocker tracking</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

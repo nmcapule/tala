@@ -1,0 +1,71 @@
+{
+  "projectId": "2814771326082574657",
+  "title": "Tala Issue Tracker Mobile Mockups",
+  "designSystem": {
+    "assetId": "dfb1f957bbf24691aa401e82e1a35e7d",
+    "name": "Tala Editorial Operations",
+    "summary": "Mobile-first editorial operations console for a local issue tracker, using warm paper surfaces, charcoal primary actions, indigo planning accents, green resolved states, and vermilion blocker/error signals."
+  },
+  "screens": [
+    {
+      "title": "Tala Login",
+      "screenId": "7f60e13f4ea5436d95ddc27db7f0a7f7",
+      "purpose": "Username-only local identity entry"
+    },
+    {
+      "title": "Tala Triage Board",
+      "screenId": "44b4acfe78c042aea1a2f5c74e267906",
+      "purpose": "Primary mobile board workflow"
+    },
+    {
+      "title": "Tala Filter Drawer",
+      "screenId": "c1928c52876c4049ba421bd831158c4c",
+      "purpose": "Assignee, priority, tag, status, and text filtering"
+    },
+    {
+      "title": "Tala Create Issue",
+      "screenId": "b642a193922243648e4954a8f1851d65",
+      "purpose": "Create issue form with required title validation"
+    },
+    {
+      "title": "Tala Issue Detail",
+      "screenId": "e31d577bf0334b4bbcee33d35dbcd51f",
+      "purpose": "Issue overview with metadata, Markdown, relationships, and comments"
+    },
+    {
+      "title": "Tala Edit Description",
+      "screenId": "de6df36281c04a87819e0530d6ce1304",
+      "purpose": "Markdown source editing and sanitized preview"
+    },
+    {
+      "title": "Tala Comments",
+      "screenId": "c4721e1ab14c470ca9adf37b15faec93",
+      "purpose": "Append-only Markdown comments"
+    },
+    {
+      "title": "Tala Manage Relationships",
+      "screenId": "f54da6dd05494645a5288e5cd0b84ff7",
+      "purpose": "Set parent and add/remove blockers with cycle error state"
+    },
+    {
+      "title": "Tala Hierarchy Planning",
+      "screenId": "13df61487c9f49f686cdfd88640a127c",
+      "purpose": "Mobile parent-child tree planning view"
+    },
+    {
+      "title": "Tala Blocker Planning",
+      "screenId": "cfcb65b0d0394e31b79ec66e577a8bd0",
+      "purpose": "Mobile dependency and blocked-by planning view"
+    },
+    {
+      "title": "Tala Triage Board (Empty)",
+      "screenId": "53b3e2fe4dae4cd18cc332c3ff1e05b8",
+      "purpose": "First-run board state with no issues"
+    },
+    {
+      "title": "Username Required Error",
+      "screenId": "121de7ccc16844cdb6162826068d04d4",
+      "purpose": "Missing username mutation error state"
+    }
+  ]
+}

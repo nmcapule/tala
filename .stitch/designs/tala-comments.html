@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Tala - Comments</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;650;700&amp;family=Newsreader:wght@600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-tint": "#615e5a",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low": "#f7f3ec",
+                        "surface-bright": "#fdf9f2",
+                        "on-primary-container": "#87837f",
+                        "inverse-primary": "#cbc5c0",
+                        "surface-variant": "#e6e2db",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed": "#370e00",
+                        "error-container": "#ffdad6",
+                        "surface-dim": "#dddad3",
+                        "on-surface": "#1c1c18",
+                        "primary": "#000000",
+                        "on-primary-fixed-variant": "#494642",
+                        "surface-container-highest": "#e6e2db",
+                        "on-surface-variant": "#4b463f",
+                        "outline": "#7c766e",
+                        "secondary-fixed": "#9df4ce",
+                        "surface": "#fdf9f2",
+                        "secondary": "#006c4e",
+                        "inverse-surface": "#31302c",
+                        "primary-fixed-dim": "#cbc5c0",
+                        "on-secondary-container": "#0b7052",
+                        "primary-container": "#1d1b18",
+                        "on-error-container": "#93000a",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed-dim": "#ffb598",
+                        "tertiary-container": "#370e00",
+                        "surface-container-high": "#ebe8e1",
+                        "secondary-container": "#9af1cb",
+                        "background": "#fdf9f2",
+                        "on-error": "#ffffff",
+                        "tertiary": "#000000",
+                        "error-vermilion": "#b42318",
+                        "surface-indigo": "#2d2a7a",
+                        "on-tertiary-container": "#d26431",
+                        "on-tertiary-fixed-variant": "#7e2c00",
+                        "on-background": "#1c1c18",
+                        "outline-warm": "#8b8173",
+                        "surface-container": "#f1ede6",
+                        "on-secondary-fixed": "#002115",
+                        "on-secondary-fixed-variant": "#00513a",
+                        "on-primary-fixed": "#1d1b18",
+                        "primary-fixed": "#e8e1dc",
+                        "outline-variant": "#cdc5bc",
+                        "on-secondary": "#ffffff",
+                        "inverse-on-surface": "#f4f0e9",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#81d7b2",
+                        "tertiary-fixed": "#ffdbce"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xs": "6px",
+                        "sm": "8px",
+                        "md": "12px",
+                        "base": "4px",
+                        "margin-mobile": "16px",
+                        "gutter-mobile": "12px",
+                        "xl": "24px",
+                        "lg": "16px"
+                    },
+                    "fontFamily": {
+                        "label-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md": ["Newsreader"],
+                        "headline-lg": ["Newsreader"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-xl": ["Newsreader"],
+                        "headline-lg-mobile": ["Newsreader"]
+                    },
+                    "fontSize": {
+                        "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "650" }],
+                        "headline-md": ["21px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "headline-lg": ["26px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-xl": ["32px", { "lineHeight": "38px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "28px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .material-symbols-outlined {
+                font-family: 'Material Symbols Outlined';
+                font-weight: normal;
+                font-style: normal;
+                font-size: 24px;
+                line-height: 1;
+                letter-spacing: normal;
+                text-transform: none;
+                display: inline-block;
+                white-space: nowrap;
+                word-wrap: normal;
+                direction: ltr;
+                -webkit-font-feature-settings: 'liga';
+                -webkit-font-smoothing: antialiased;
+            }
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface antialiased min-h-screen flex flex-col items-center">
+<header class="bg-surface fixed top-0 w-full z-50 border-b border-outline-variant flex items-center justify-between px-margin-mobile h-14 w-full">
+<button aria-label="Go back" class="flex items-center justify-center p-sm -ml-sm active:opacity-70 rounded-full hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-primary" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-primary">Tala</h1>
+<button aria-label="More options" class="flex items-center justify-center p-sm -mr-sm active:opacity-70 rounded-full hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-primary" data-icon="more_vert">more_vert</span>
+</button>
+</header>
+<main class="w-full max-w-[768px] pt-14 flex-grow flex flex-col">
+<section class="px-margin-mobile pt-xl pb-md border-b border-outline-variant/50 bg-surface-bright">
+<div class="flex items-baseline justify-between gap-md mb-xs">
+<h2 class="font-headline-xl text-headline-xl text-primary m-0">Comments</h2>
+<span class="inline-flex items-center px-sm py-0.5 rounded-full bg-surface-container-high border border-outline-variant text-on-surface-variant font-label-sm uppercase tracking-widest whitespace-nowrap">
+                    5 comments
+                </span>
+</div>
+<p class="font-body-md text-on-surface-variant m-0">Add MCP issue search</p>
+</section>
+<section class="flex-grow px-margin-mobile py-lg flex flex-col gap-xl">
+<article class="flex flex-col gap-xs group">
+<header class="flex items-center gap-sm">
+<span class="w-2 h-2 rounded-full bg-outline-variant group-hover:bg-primary transition-colors"></span>
+<strong class="font-label-md text-primary">Alex</strong>
+<time class="font-label-sm text-on-surface-variant">2h ago</time>
+</header>
+<div class="font-body-md text-on-surface pl-md border-l-2 border-surface-container-highest ml-[3px]">
+<p class="m-0">I think we should prioritize the <code class="font-mono text-[13px] bg-surface-variant px-1 rounded text-on-surface py-0.5">issue_search</code> filtering logic first to avoid performance bottlenecks.</p>
+</div>
+</article>
+<article class="flex flex-col gap-xs group">
+<header class="flex items-center gap-sm">
+<span class="w-2 h-2 rounded-full bg-outline-variant group-hover:bg-primary transition-colors"></span>
+<strong class="font-label-md text-primary">Sam</strong>
+<time class="font-label-sm text-on-surface-variant">1.5h ago</time>
+</header>
+<div class="font-body-md text-on-surface pl-md border-l-2 border-surface-container-highest ml-[3px]">
+<p class="m-0">Agreed. I've drafted the schema for the filter results.</p>
+</div>
+</article>
+<article class="flex flex-col gap-xs group">
+<header class="flex items-center gap-sm">
+<span class="w-2 h-2 rounded-full bg-surface-indigo"></span>
+<strong class="font-label-md text-primary flex items-center gap-xs">
+                        Agent
+                        <span class="material-symbols-outlined text-[14px] text-surface-indigo" data-icon="smart_toy" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</strong>
+<time class="font-label-sm text-on-surface-variant">1h ago</time>
+</header>
+<div class="font-body-md text-on-surface pl-md border-l-2 border-surface-indigo/30 ml-[3px] bg-surface-container-low py-sm pr-sm rounded-r-DEFAULT">
+<p class="m-0">I tested this with a local MCP client. The latency for large result sets is within acceptable bounds.</p>
+</div>
+</article>
+<article class="flex flex-col gap-xs group">
+<header class="flex items-center gap-sm">
+<span class="w-2 h-2 rounded-full bg-outline-variant group-hover:bg-primary transition-colors"></span>
+<strong class="font-label-md text-primary">Alex</strong>
+<time class="font-label-sm text-on-surface-variant">45m ago</time>
+</header>
+<div class="font-body-md text-on-surface pl-md border-l-2 border-surface-container-highest ml-[3px]">
+<p class="m-0">Excellent. Let's move to integration.</p>
+</div>
+</article>
+<article class="flex flex-col gap-xs group">
+<header class="flex items-center gap-sm">
+<span class="w-2 h-2 rounded-full bg-outline-variant group-hover:bg-primary transition-colors"></span>
+<strong class="font-label-md text-primary">Sam</strong>
+<time class="font-label-sm text-on-surface-variant">10m ago</time>
+</header>
+<div class="font-body-md text-on-surface pl-md border-l-2 border-surface-container-highest ml-[3px]">
+<p class="m-0">Working on the backend hooks now.</p>
+</div>
+</article>
+</section>
+<section class="bg-surface-container-low border-t border-outline-variant p-margin-mobile mt-auto">
+<div class="max-w-[768px] mx-auto flex flex-col gap-sm">
+<label class="font-label-sm text-on-surface-variant uppercase tracking-widest flex items-center gap-xs" for="body_markdown">
+                    body_markdown
+                </label>
+<div class="relative">
+<textarea aria-describedby="body_markdown_error" aria-invalid="true" class="w-full bg-surface-container-lowest border-2 border-error text-on-surface font-body-md p-md rounded resize-none focus:outline-none focus:ring-0 placeholder:text-on-surface-variant/50" id="body_markdown" name="body_markdown" placeholder="Add a Markdown comment..." rows="4"></textarea>
+</div>
+<div class="flex items-center gap-xs text-error font-label-sm mt-base" id="body_markdown_error">
+<span class="material-symbols-outlined text-[16px]" data-icon="error">error</span>
+<span>Comment body is required.</span>
+</div>
+<button class="w-full bg-primary text-on-primary font-label-md py-md rounded-DEFAULT mt-sm active:opacity-70 transition-opacity flex items-center justify-center gap-sm hover:bg-inverse-surface" type="button">
+<span class="material-symbols-outlined text-[18px]" data-icon="add_comment">add_comment</span>
+                    Add comment
+                </button>
+<p class="text-center font-label-sm text-on-surface-variant mt-sm">
+                    Comments are append-only in v1
+                </p>
+</div>
+</section>
+</main>
+</body></html>

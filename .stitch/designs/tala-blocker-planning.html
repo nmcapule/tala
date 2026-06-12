@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Tala - Blockers</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Newsreader:opsz,wght@6..72,400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-container": "#370e00",
+                    "error-container": "#ffdad6",
+                    "outline-warm": "#8b8173",
+                    "secondary": "#006c4e",
+                    "on-secondary-fixed": "#002115",
+                    "on-tertiary-container": "#d26431",
+                    "on-surface": "#1c1c18",
+                    "on-secondary": "#ffffff",
+                    "secondary-fixed-dim": "#81d7b2",
+                    "surface-bright": "#fffdf8",
+                    "surface-container-low": "#f7f3ec",
+                    "on-surface-variant": "#4b463f",
+                    "surface": "#fdf9f2",
+                    "primary-fixed-dim": "#cbc5c0",
+                    "on-primary-fixed-variant": "#494642",
+                    "on-primary-container": "#87837f",
+                    "on-primary-fixed": "#1d1b18",
+                    "inverse-surface": "#31302c",
+                    "on-tertiary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "surface-dim": "#ded7cc",
+                    "on-error": "#ffffff",
+                    "secondary-fixed": "#9df4ce",
+                    "error": "#ba1a1a",
+                    "surface-container-high": "#ebe8e1",
+                    "primary": "#000000",
+                    "on-background": "#1c1c18",
+                    "tertiary-fixed-dim": "#ffb598",
+                    "surface-variant": "#e6e2db",
+                    "surface-container": "#f1ede6",
+                    "inverse-primary": "#cbc5c0",
+                    "primary-fixed": "#e8e1dc",
+                    "primary-container": "#1d1b18",
+                    "inverse-on-surface": "#f4f0e9",
+                    "surface-container-highest": "#e6e2db",
+                    "on-primary": "#ffffff",
+                    "surface-tint": "#615e5a",
+                    "tertiary-fixed": "#ffdbce",
+                    "error-vermilion": "#b42318",
+                    "outline": "#7c766e",
+                    "background": "#fdf9f2",
+                    "on-secondary-container": "#0b7052",
+                    "on-secondary-fixed-variant": "#00513a",
+                    "outline-variant": "#cdc5bc",
+                    "secondary-container": "#9af1cb",
+                    "surface-indigo": "#2d2a7a",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-fixed": "#370e00",
+                    "tertiary": "#000000",
+                    "on-tertiary-fixed-variant": "#7e2c00"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "lg": "16px",
+                    "sm": "8px",
+                    "margin-mobile": "16px",
+                    "xs": "6px",
+                    "gutter-mobile": "12px",
+                    "xl": "24px",
+                    "base": "4px",
+                    "md": "12px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-md": ["Newsreader"],
+                    "headline-lg-mobile": ["Newsreader"],
+                    "headline-lg": ["Newsreader"],
+                    "label-sm": ["Inter"],
+                    "headline-xl": ["Newsreader"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "650"}],
+                    "headline-md": ["21px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "headline-lg": ["26px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "label-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700"}],
+                    "headline-xl": ["32px", {"lineHeight": "38px", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom, 16px);
+        }
+        /* Custom scrollbar for horizontal scrolling areas */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface antialiased min-h-screen flex flex-col pb-24">
+<!-- TopAppBar -->
+<header class="w-full sticky top-0 z-50 bg-surface border-b border-outline-variant flex items-center justify-between px-margin-mobile h-14 w-full">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary hover:bg-surface-container-high transition-colors p-1 rounded active:opacity-80 transition-opacity" data-icon="arrow_back">arrow_back</span>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-primary tracking-tight">Blockers</h1>
+<span class="font-label-sm text-label-sm text-on-surface-variant ml-1 mt-1">as alex</span>
+</div>
+<div class="flex items-center gap-1">
+<button class="p-2 rounded hover:bg-surface-container-high text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button class="p-2 rounded hover:bg-surface-container-high text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined" data-icon="tune">tune</span>
+</button>
+</div>
+</header>
+<main class="flex-1 px-margin-mobile pt-lg flex flex-col gap-lg">
+<!-- Summary Section -->
+<section class="grid grid-cols-3 gap-xs">
+<div class="bg-surface-container-low border border-error-vermilion/20 rounded p-sm flex flex-col items-center justify-center text-center">
+<span class="font-headline-md text-headline-md text-error-vermilion">12</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant mt-1">Unresolved Blockers</span>
+</div>
+<div class="bg-surface-container-low border border-secondary/20 rounded p-sm flex flex-col items-center justify-center text-center">
+<span class="font-headline-md text-headline-md text-secondary">4</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant mt-1">Unblocked Issues</span>
+</div>
+<div class="bg-surface-container-low border border-outline-variant/30 rounded p-sm flex flex-col items-center justify-center text-center">
+<span class="font-headline-md text-headline-md text-on-surface">38</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant mt-1">Total Relationships</span>
+</div>
+</section>
+<!-- Dependency View: Blocked Issues -->
+<section class="flex flex-col gap-sm mt-md">
+<h2 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Blocked issues</h2>
+<!-- Blocked Issue Card Cluster -->
+<div class="bg-surface-container-low border border-outline-variant rounded-lg overflow-hidden">
+<!-- Primary Issue -->
+<div class="p-md border-b border-outline-variant bg-surface-bright flex flex-col gap-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-1 h-4 bg-tertiary rounded-full"></span>
+<span class="font-label-sm text-label-sm bg-surface-variant text-on-surface px-1.5 py-0.5 rounded">In Progress</span>
+<span class="font-label-sm text-label-sm text-error-vermilion border border-error-vermilion/30 px-1.5 py-0.5 rounded">P0</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="font-label-sm text-label-sm">Alex</span>
+<div class="w-5 h-5 rounded-full bg-primary-fixed flex items-center justify-center border border-outline-variant">
+<span class="font-label-sm text-label-sm text-on-surface" style="font-size: 8px;">A</span>
+</div>
+</div>
+</div>
+<h3 class="font-body-lg text-body-lg text-on-surface font-semibold">Add MCP issue search</h3>
+<div class="flex gap-1 mt-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded">mcp</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded">feature</span>
+</div>
+</div>
+<!-- Blocker Relationship Indication -->
+<div class="px-md py-sm bg-error-container/20 border-b border-error-vermilion/20 flex items-center gap-2">
+<span class="material-symbols-outlined text-error-vermilion text-[16px]" data-icon="block">block</span>
+<span class="font-label-sm text-label-sm text-error-vermilion uppercase tracking-widest">Blocked By</span>
+</div>
+<!-- Blocking Issue -->
+<div class="p-md bg-surface flex flex-col gap-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-1 h-4 bg-outline-variant rounded-full"></span>
+<span class="font-label-sm text-label-sm border border-outline-variant text-on-surface-variant px-1.5 py-0.5 rounded">New</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant border border-outline-variant/50 px-1.5 py-0.5 rounded">P1</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="font-label-sm text-label-sm">Sam</span>
+<div class="w-5 h-5 rounded-full bg-secondary-fixed flex items-center justify-center border border-outline-variant">
+<span class="font-label-sm text-label-sm text-on-secondary-fixed" style="font-size: 8px;">S</span>
+</div>
+</div>
+</div>
+<h3 class="font-body-md text-body-md text-on-surface-variant">Sanitize Markdown preview</h3>
+<div class="flex gap-1 mt-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded">security</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded">editor</span>
+</div>
+<!-- Actions for this relationship -->
+<div class="flex gap-2 mt-md pt-sm border-t border-outline-variant/30">
+<button class="flex-1 font-label-md text-label-md py-1.5 border border-outline-warm text-on-surface rounded flex items-center justify-center gap-1 hover:bg-surface-container">
+<span class="material-symbols-outlined text-[16px]" data-icon="open_in_new">open_in_new</span> Detail
+                        </button>
+<button class="flex-1 font-label-md text-label-md py-1.5 border border-error-vermilion text-error-vermilion rounded flex items-center justify-center gap-1 hover:bg-error-container/20">
+<span class="material-symbols-outlined text-[16px]" data-icon="link_off">link_off</span> Remove
+                        </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Dependency View: Issues blocking others (Resolved) -->
+<section class="flex flex-col gap-sm mt-md">
+<h2 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Recently Unblocked</h2>
+<!-- Resolved Blocker Issue Card Cluster -->
+<div class="bg-surface-container-low border border-outline-variant rounded-lg overflow-hidden opacity-80">
+<!-- Primary Issue (Was Blocked) -->
+<div class="p-md border-b border-outline-variant bg-surface flex flex-col gap-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-1 h-4 bg-tertiary rounded-full"></span>
+<span class="font-label-sm text-label-sm bg-surface-variant text-on-surface px-1.5 py-0.5 rounded">In Progress</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant border border-outline-variant/50 px-1.5 py-0.5 rounded">P2</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="font-label-sm text-label-sm">Sam</span>
+</div>
+</div>
+<h3 class="font-body-md text-body-md text-on-surface font-semibold">Wire blocker cycle validation</h3>
+</div>
+<!-- Resolved Relationship Indication -->
+<div class="px-md py-sm bg-secondary-fixed-dim/20 border-b border-secondary/20 flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[16px]" data-icon="check_circle">check_circle</span>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-widest">Unblocked by resolution of</span>
+</div>
+<!-- Blocking Issue (Resolved) -->
+<div class="p-md bg-surface-container-lowest flex flex-col gap-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-1 h-4 bg-secondary rounded-full"></span>
+<span class="font-label-sm text-label-sm bg-secondary text-on-secondary px-1.5 py-0.5 rounded">Completed</span>
+</div>
+</div>
+<h3 class="font-body-md text-body-md text-on-surface-variant line-through">Expose MCP resources</h3>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 border-t border-outline-variant bg-surface-container-high flex justify-around items-center h-16 w-full px-base pb-safe">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-dim transition-transform duration-150 scale-95 active:scale-90 p-2 rounded-lg" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="grid_view">grid_view</span>
+<span class="font-label-sm text-label-sm">Board</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-dim transition-transform duration-150 scale-95 active:scale-90 p-2 rounded-lg" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="account_tree">account_tree</span>
+<span class="font-label-sm text-label-sm">Hierarchy</span>
+</a>
+<a class="flex flex-col items-center justify-center text-surface-indigo font-bold hover:bg-surface-dim transition-transform duration-150 scale-95 active:scale-90 p-2 rounded-lg" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="block" style="font-variation-settings: 'FILL' 1;">block</span>
+<span class="font-label-sm text-label-sm">Blockers</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-dim transition-transform duration-150 scale-95 active:scale-90 p-2 rounded-lg" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="person">person</span>
+<span class="font-label-sm text-label-sm">Profile</span>
+</a>
+</nav>
+<!-- FAB -->
+<button class="fixed bottom-24 right-4 w-14 h-14 bg-primary text-on-primary rounded-xl shadow-lg flex items-center justify-center hover:bg-primary-fixed-variant transition-colors z-40 active:scale-95">
+<span class="material-symbols-outlined text-[28px]" data-icon="add">add</span>
+</button>
+</body></html>

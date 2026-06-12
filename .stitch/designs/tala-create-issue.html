@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Create Issue - Tala</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Newsreader:opsz,wght@6..72,400;6..72,600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#e6e2db",
+                        "tertiary-fixed-dim": "#ffb598",
+                        "error-container": "#ffdad6",
+                        "primary-container": "#1d1b18",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#e8e1dc",
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed-dim": "#81d7b2",
+                        "surface-dim": "#dddad3",
+                        "outline": "#7c766e",
+                        "on-background": "#1c1c18",
+                        "surface-bright": "#fffdf8",
+                        "on-surface-variant": "#4b463f",
+                        "tertiary-fixed": "#ffdbce",
+                        "primary": "#000000",
+                        "on-primary-fixed": "#1d1b18",
+                        "on-error": "#ffffff",
+                        "primary-fixed-dim": "#cbc5c0",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#e6e2db",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-container": "#0b7052",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#f7f3ec",
+                        "on-tertiary-fixed-variant": "#7e2c00",
+                        "error": "#ba1a1a",
+                        "on-tertiary-container": "#d26431",
+                        "surface-container": "#f1ede6",
+                        "on-surface": "#1c1c18",
+                        "on-secondary-fixed": "#002115",
+                        "inverse-on-surface": "#f4f0e9",
+                        "background": "#fdf9f2",
+                        "secondary-fixed": "#9df4ce",
+                        "on-primary-container": "#87837f",
+                        "inverse-primary": "#cbc5c0",
+                        "tertiary-container": "#370e00",
+                        "outline-variant": "#cdc5bc",
+                        "error-vermilion": "#b42318",
+                        "secondary-container": "#9af1cb",
+                        "surface-container-high": "#ebe8e1",
+                        "secondary": "#006c4e",
+                        "inverse-surface": "#31302c",
+                        "on-tertiary-fixed": "#370e00",
+                        "surface-tint": "#615e5a",
+                        "tertiary": "#000000",
+                        "on-primary-fixed-variant": "#494642",
+                        "surface-indigo": "#2d2a7a",
+                        "on-secondary-fixed-variant": "#00513a",
+                        "outline-warm": "#8b8173",
+                        "surface": "#fdf9f2"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "margin-mobile": "16px",
+                        "gutter-mobile": "12px",
+                        "xs": "6px",
+                        "xl": "24px",
+                        "md": "12px",
+                        "sm": "8px",
+                        "lg": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Newsreader"],
+                        "headline-lg": ["Newsreader"],
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-xl": ["Newsreader"],
+                        "headline-md": ["Newsreader"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["24px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "headline-lg": ["26px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "650" }],
+                        "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }],
+                        "headline-xl": ["32px", { "lineHeight": "38px", "fontWeight": "600" }],
+                        "headline-md": ["21px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        /* Custom scrollbar for dense areas if needed */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: theme('colors.surface-container');
+        }
+        ::-webkit-scrollbar-thumb {
+            background: theme('colors.outline-variant');
+            border-radius: 2px;
+        }
+        
+        /* Form element focus states */
+        .focus-ring:focus-within {
+            outline: 2px solid theme('colors.primary');
+            outline-offset: -1px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen flex flex-col md:items-center">
+<!-- TopAppBar JSON Component implementation -->
+<header class="w-full sticky top-0 z-50 border-b border-outline-variant dark:border-outline-variant bg-surface dark:bg-surface flex items-center justify-between px-margin-mobile h-14 md:max-w-[768px] mx-auto">
+<div class="flex items-center gap-sm">
+<button aria-label="Go back" class="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors active:opacity-80 text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">arrow_back</span>
+</button>
+<div class="flex flex-col">
+<h1 class="font-headline-md text-headline-md-mobile dark:text-headline-md-mobile text-primary dark:text-primary-fixed tracking-tight m-0 p-0 leading-none">Create issue</h1>
+<span class="font-label-sm text-label-sm text-on-surface-variant mt-[2px]">as alex</span>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 w-full md:max-w-[768px] px-margin-mobile py-lg pb-32 overflow-y-auto">
+<form class="flex flex-col gap-lg" id="create-issue-form">
+<!-- Title Input (Required with Error State) -->
+<div class="flex flex-col gap-base">
+<input class="w-full bg-surface-bright font-headline-md text-headline-md-mobile text-primary placeholder-on-surface-variant/50 border border-error rounded px-md py-sm focus:outline-none focus:border-error transition-colors" id="issue-title" placeholder="Issue title" type="text" value=""/>
+<span class="font-label-sm text-label-sm text-error flex items-center gap-xs">
+<span class="material-symbols-outlined text-[14px]">error</span> Title is required
+                </span>
+</div>
+<!-- Priority Selector -->
+<div class="flex flex-col gap-sm mt-sm">
+<label class="font-label-md text-label-md text-on-surface-variant">Priority</label>
+<div class="flex rounded border border-outline-variant overflow-hidden bg-surface-container-low h-10 w-full" role="radiogroup">
+<label class="flex-1 cursor-pointer border-r border-outline-variant last:border-r-0 relative hover:bg-surface-container-high transition-colors">
+<input class="sr-only peer" name="priority" type="radio" value="P0"/>
+<div class="w-full h-full flex items-center justify-center font-label-md text-label-md text-on-surface-variant peer-checked:bg-primary peer-checked:text-on-primary transition-colors">
+                            P0
+                        </div>
+</label>
+<label class="flex-1 cursor-pointer border-r border-outline-variant last:border-r-0 relative hover:bg-surface-container-high transition-colors">
+<input class="sr-only peer" name="priority" type="radio" value="P1"/>
+<div class="w-full h-full flex items-center justify-center font-label-md text-label-md text-on-surface-variant peer-checked:bg-primary peer-checked:text-on-primary transition-colors">
+                            P1
+                        </div>
+</label>
+<label class="flex-1 cursor-pointer border-r border-outline-variant last:border-r-0 relative hover:bg-surface-container-high transition-colors">
+<input checked="" class="sr-only peer" name="priority" type="radio" value="P2"/>
+<div class="w-full h-full flex items-center justify-center font-label-md text-label-md text-on-surface-variant peer-checked:bg-primary peer-checked:text-on-primary transition-colors">
+                            P2
+                        </div>
+</label>
+<label class="flex-1 cursor-pointer border-r border-outline-variant last:border-r-0 relative hover:bg-surface-container-high transition-colors">
+<input class="sr-only peer" name="priority" type="radio" value="P3"/>
+<div class="w-full h-full flex items-center justify-center font-label-md text-label-md text-on-surface-variant peer-checked:bg-primary peer-checked:text-on-primary transition-colors">
+                            P3
+                        </div>
+</label>
+<label class="flex-1 cursor-pointer border-r border-outline-variant last:border-r-0 relative hover:bg-surface-container-high transition-colors">
+<input class="sr-only peer" name="priority" type="radio" value="P4"/>
+<div class="w-full h-full flex items-center justify-center font-label-md text-label-md text-on-surface-variant peer-checked:bg-primary peer-checked:text-on-primary transition-colors">
+                            P4
+                        </div>
+</label>
+</div>
+</div>
+<div class="h-px w-full bg-outline-variant my-base"></div>
+<!-- Description Field -->
+<div class="flex flex-col gap-base focus-ring bg-surface-bright border border-outline-variant rounded p-xs pb-0">
+<div class="flex items-center justify-between px-xs pt-xs">
+<label class="font-label-md text-label-md text-on-surface-variant flex items-center gap-xs" for="issue-description">
+<span class="material-symbols-outlined text-[16px]">edit_document</span> Markdown source
+                    </label>
+</div>
+<textarea class="w-full bg-transparent font-body-md text-body-md text-primary placeholder-on-surface-variant/50 border-none resize-none focus:ring-0 p-sm pb-md" id="issue-description" placeholder="Describe the issue..." rows="6"></textarea>
+</div>
+<div class="h-px w-full bg-outline-variant my-base"></div>
+<!-- Attributes Section (Dense layout) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+<!-- Assignee -->
+<div class="flex flex-col gap-base">
+<label class="font-label-md text-label-md text-on-surface-variant">Assignee</label>
+<button class="flex items-center justify-between w-full bg-surface-bright border border-outline-variant rounded px-md py-sm hover:bg-surface-container-low transition-colors text-left focus:outline-none focus:border-primary" type="button">
+<span class="font-body-md text-body-md text-on-surface-variant">Select assignee</span>
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]">person_add</span>
+</button>
+</div>
+<!-- Parent Issue -->
+<div class="flex flex-col gap-base">
+<label class="font-label-md text-label-md text-on-surface-variant">Parent Issue</label>
+<button class="flex items-center justify-between w-full bg-surface-bright border border-outline-variant rounded px-md py-sm hover:bg-surface-container-low transition-colors text-left focus:outline-none focus:border-primary" type="button">
+<span class="font-body-md text-body-md text-on-surface-variant">None</span>
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]">account_tree</span>
+</button>
+</div>
+<!-- Tags -->
+<div class="flex flex-col gap-base md:col-span-2">
+<label class="font-label-md text-label-md text-on-surface-variant">Tags</label>
+<div class="flex flex-wrap gap-sm items-center bg-surface-bright border border-outline-variant rounded p-sm focus-ring min-h-[44px]">
+<!-- Sample Chips -->
+<div class="flex items-center gap-xs bg-surface-container-high rounded-full px-sm py-[2px] border border-outline-variant">
+<span class="font-label-sm text-label-sm text-primary">mcp</span>
+<button class="text-on-surface-variant hover:text-error transition-colors flex items-center justify-center" type="button">
+<span class="material-symbols-outlined text-[14px]">close</span>
+</button>
+</div>
+<div class="flex items-center gap-xs bg-surface-container-high rounded-full px-sm py-[2px] border border-outline-variant">
+<span class="font-label-sm text-label-sm text-primary">api</span>
+<button class="text-on-surface-variant hover:text-error transition-colors flex items-center justify-center" type="button">
+<span class="material-symbols-outlined text-[14px]">close</span>
+</button>
+</div>
+<input class="flex-1 bg-transparent border-none focus:ring-0 font-body-md text-body-md text-primary placeholder-on-surface-variant/50 min-w-[100px] p-0 h-6" placeholder="Add tag..." type="text"/>
+</div>
+</div>
+</div>
+</form>
+</main>
+<!-- Fixed Footer Actions -->
+<div class="fixed bottom-0 left-0 w-full bg-surface-container-lowest border-t border-outline-variant shadow-[0_-4px_12px_rgba(25,23,20,0.08)] z-40">
+<div class="flex items-center justify-end gap-md px-margin-mobile py-md md:max-w-[768px] mx-auto pb-safe">
+<button class="font-label-md text-label-md text-primary bg-transparent border border-outline-warm rounded px-lg py-sm hover:bg-surface-container-low transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 h-10" type="button">
+                Cancel
+            </button>
+<!-- Primary Button (Disabled state as requested due to empty/invalid title) -->
+<button class="font-label-md text-label-md text-on-primary bg-primary rounded px-lg py-sm opacity-50 cursor-not-allowed h-10" disabled="" type="button">
+                Create issue
+            </button>
+</div>
+</div>
+<script>
+        // Simple script to toggle input state for demo purposes
+        document.addEventListener('DOMContentLoaded', () => {
+            const titleInput = document.getElementById('issue-title');
+            const submitBtn = document.querySelector('button[disabled]');
+            const errorMsg = titleInput.nextElementSibling;
+            
+            titleInput.addEventListener('input', (e) => {
+                if (e.target.value.trim().length > 0) {
+                    titleInput.classList.remove('border-error', 'focus:border-error');
+                    titleInput.classList.add('border-outline-variant', 'focus:border-primary');
+                    errorMsg.style.visibility = 'hidden';
+                    submitBtn.removeAttribute('disabled');
+                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    submitBtn.classList.add('hover:bg-primary/90', 'active:scale-[0.98]', 'transition-all');
+                } else {
+                    titleInput.classList.add('border-error', 'focus:border-error');
+                    titleInput.classList.remove('border-outline-variant', 'focus:border-primary');
+                    errorMsg.style.visibility = 'visible';
+                    submitBtn.setAttribute('disabled', 'true');
+                    submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    submitBtn.classList.remove('hover:bg-primary/90', 'active:scale-[0.98]', 'transition-all');
+                }
+            });
+        });
+    </script>
+</body></html>

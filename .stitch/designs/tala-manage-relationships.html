@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Manage Relationships</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;650;700&amp;family=Newsreader:wght@600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "primary-container": "#1d1b18",
+                "outline-warm": "#8b8173",
+                "primary-fixed-dim": "#cbc5c0",
+                "surface-bright": "#fffdf8",
+                "surface-indigo": "#2d2a7a",
+                "on-primary-fixed-variant": "#494642",
+                "on-surface": "#1c1c18",
+                "on-tertiary": "#ffffff",
+                "on-tertiary-container": "#d26431",
+                "background": "#fdf9f2",
+                "surface-container": "#f1ede6",
+                "tertiary-container": "#370e00",
+                "tertiary": "#000000",
+                "on-surface-variant": "#4b463f",
+                "primary-fixed": "#e8e1dc",
+                "secondary-container": "#9af1cb",
+                "outline-variant": "#cdc5bc",
+                "surface-container-low": "#f7f3ec",
+                "on-secondary-fixed": "#002115",
+                "secondary-fixed-dim": "#81d7b2",
+                "surface-tint": "#615e5a",
+                "on-tertiary-fixed": "#370e00",
+                "on-secondary": "#ffffff",
+                "tertiary-fixed": "#ffdbce",
+                "on-primary-container": "#87837f",
+                "secondary-fixed": "#9df4ce",
+                "on-secondary-container": "#0b7052",
+                "on-error-container": "#93000a",
+                "error-container": "#ffdad6",
+                "on-error": "#ffffff",
+                "primary": "#000000",
+                "surface-container-highest": "#e6e2db",
+                "on-secondary-fixed-variant": "#00513a",
+                "surface-container-lowest": "#ffffff",
+                "on-primary-fixed": "#1d1b18",
+                "on-primary": "#ffffff",
+                "inverse-on-surface": "#f4f0e9",
+                "error": "#ba1a1a",
+                "on-tertiary-fixed-variant": "#7e2c00",
+                "surface-variant": "#e6e2db",
+                "surface": "#fdf9f2",
+                "on-background": "#1c1c18",
+                "inverse-surface": "#31302c",
+                "error-vermilion": "#b42318",
+                "surface-container-high": "#ebe8e1",
+                "secondary": "#006c4e",
+                "inverse-primary": "#cbc5c0",
+                "surface-dim": "#ded7cc",
+                "tertiary-fixed-dim": "#ffb598",
+                "outline": "#7c766e"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.125rem",
+                "lg": "0.25rem",
+                "xl": "0.5rem",
+                "full": "0.75rem"
+        },
+        "spacing": {
+                "lg": "16px",
+                "xs": "6px",
+                "sm": "8px",
+                "gutter-mobile": "12px",
+                "xl": "24px",
+                "base": "4px",
+                "md": "12px",
+                "margin-mobile": "16px"
+        },
+        "fontFamily": {
+                "headline-xl": [
+                        "Newsreader"
+                ],
+                "headline-lg": [
+                        "Newsreader"
+                ],
+                "label-sm": [
+                        "Inter"
+                ],
+                "headline-lg-mobile": [
+                        "Newsreader"
+                ],
+                "body-lg": [
+                        "Inter"
+                ],
+                "label-md": [
+                        "Inter"
+                ],
+                "headline-md": [
+                        "Newsreader"
+                ],
+                "body-md": [
+                        "Inter"
+                ]
+        },
+        "fontSize": {
+                "headline-xl": [
+                        "32px",
+                        {
+                                "lineHeight": "38px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "headline-lg": [
+                        "26px",
+                        {
+                                "lineHeight": "32px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "label-sm": [
+                        "11px",
+                        {
+                                "lineHeight": "14px",
+                                "letterSpacing": "0.04em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-lg-mobile": [
+                        "24px",
+                        {
+                                "lineHeight": "28px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-lg": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-md": [
+                        "12px",
+                        {
+                                "lineHeight": "16px",
+                                "letterSpacing": "0.02em",
+                                "fontWeight": "650"
+                        }
+                ],
+                "headline-md": [
+                        "21px",
+                        {
+                                "lineHeight": "28px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-md": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+    .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+</style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface antialiased flex justify-center min-h-screen">
+<main class="w-full max-w-[768px] bg-surface relative min-h-screen shadow-2xl flex flex-col pt-[84px] pb-xl">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full max-w-[768px] z-50 bg-surface flex justify-between items-center px-margin-mobile py-md">
+<!-- Leading Action -->
+<button class="text-primary hover:bg-surface-container-high active:scale-95 transition-all p-1 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">close</span>
+</button>
+<!-- Center Identity -->
+<div class="flex flex-col items-center justify-center pointer-events-none">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-primary font-bold leading-none">Manage Relationships</h1>
+<span class="font-label-md text-label-md text-on-surface-variant mt-1">Add MCP issue search</span>
+</div>
+<!-- Trailing Action -->
+<button class="font-label-md text-label-md text-primary font-bold hover:bg-surface-container-high active:scale-95 transition-all px-2 py-1 rounded-DEFAULT">
+            Done
+        </button>
+</header>
+<!-- Content Canvas -->
+<div class="flex flex-col flex-1">
+<!-- Parent Section -->
+<section class="px-margin-mobile py-lg border-b border-outline-variant flex flex-col gap-md">
+<h2 class="font-headline-md text-headline-md text-on-surface tracking-tight">PARENT</h2>
+<!-- Current Parent -->
+<div class="flex justify-between items-center bg-surface-container-low p-md rounded-lg border border-outline-variant/50">
+<div class="flex flex-col gap-base">
+<span class="font-body-lg text-body-lg text-on-surface font-medium">Tala MCP Integration</span>
+</div>
+<button class="font-label-md text-label-md text-error-vermilion bg-error-container/30 hover:bg-error-container/50 transition-colors px-sm py-1 rounded-DEFAULT">
+                    Clear parent
+                </button>
+</div>
+<!-- Set Parent Field -->
+<div class="flex flex-col gap-xs mt-sm">
+<label class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Set parent issue</label>
+<div class="flex items-center bg-surface-bright border border-outline-variant rounded-lg px-md py-sm focus-within:border-surface-tint focus-within:ring-1 focus-within:ring-surface-tint transition-all">
+<span class="material-symbols-outlined text-outline-warm mr-sm text-[20px]">search</span>
+<input class="w-full bg-transparent border-none focus:ring-0 font-body-md text-body-md text-on-surface placeholder-outline-warm p-0 outline-none" placeholder="Search issues..." type="text"/>
+</div>
+</div>
+</section>
+<!-- Blockers Section -->
+<section class="px-margin-mobile py-lg border-b border-outline-variant flex flex-col gap-md bg-surface">
+<h2 class="font-headline-md text-headline-md text-on-surface tracking-tight">BLOCKERS</h2>
+<div class="flex flex-col gap-sm">
+<!-- Blocker 1 -->
+<div class="flex items-start gap-md bg-surface-container-low p-md rounded-lg border border-outline-variant/50 group">
+<button class="mt-0.5 text-outline-warm hover:text-error-vermilion transition-colors focus:outline-none">
+<span class="material-symbols-outlined text-[20px]">remove_circle</span>
+</button>
+<div class="flex-1 flex flex-col gap-base min-w-0">
+<div class="flex justify-between items-start gap-sm">
+<span class="font-body-lg text-body-lg text-on-surface truncate">Sanitize Markdown preview</span>
+<span class="font-label-sm text-label-sm text-outline-warm whitespace-nowrap mt-1">#1038</span>
+</div>
+<div class="flex flex-wrap items-center gap-xs mt-1">
+<span class="font-label-sm text-label-sm bg-tertiary-fixed-dim text-on-tertiary-fixed-variant px-1.5 py-0.5 rounded-DEFAULT">BLOCKED</span>
+<span class="font-label-sm text-label-sm border border-outline-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">P1</span>
+<span class="font-label-sm text-label-sm bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">security</span>
+<span class="font-label-sm text-label-sm bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">editor</span>
+</div>
+</div>
+</div>
+<!-- Blocker 2 -->
+<div class="flex items-start gap-md bg-surface-container-low p-md rounded-lg border border-outline-variant/50 group">
+<button class="mt-0.5 text-outline-warm hover:text-error-vermilion transition-colors focus:outline-none">
+<span class="material-symbols-outlined text-[20px]">remove_circle</span>
+</button>
+<div class="flex-1 flex flex-col gap-base min-w-0">
+<div class="flex justify-between items-start gap-sm">
+<span class="font-body-lg text-body-lg text-on-surface truncate">Create tag endpoint</span>
+<span class="font-label-sm text-label-sm text-outline-warm whitespace-nowrap mt-1">#1022</span>
+</div>
+<div class="flex flex-wrap items-center gap-xs mt-1">
+<span class="font-label-sm text-label-sm bg-secondary-fixed-dim text-on-secondary-fixed-variant px-1.5 py-0.5 rounded-DEFAULT">DONE</span>
+<span class="font-label-sm text-label-sm border border-outline-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">P2</span>
+<span class="font-label-sm text-label-sm bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">api</span>
+<span class="font-label-sm text-label-sm bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">backend</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Add Blocker Section -->
+<section class="px-margin-mobile py-lg flex flex-col gap-md bg-surface-container-lowest">
+<h2 class="font-headline-md text-headline-md text-on-surface tracking-tight">ADD BLOCKER</h2>
+<!-- Cycle Error State -->
+<div class="bg-error-container/40 border border-error-vermilion/50 rounded-lg p-md flex flex-col gap-xs mt-sm shadow-sm">
+<div class="flex items-center gap-sm text-error-vermilion">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">error</span>
+<span class="font-label-sm text-label-sm font-bold uppercase tracking-widest text-error-vermilion">cycle_detected</span>
+</div>
+<p class="font-body-md text-body-md text-on-error-container ml-7 mt-1">Adding this blocker would create a dependency cycle.</p>
+<div class="ml-7 mt-2">
+<span class="font-label-sm text-label-sm bg-error-container text-error-vermilion px-1.5 py-0.5 rounded-DEFAULT font-mono">blocker_issue_id</span>
+</div>
+</div>
+<!-- Search Field -->
+<div class="flex items-center bg-surface-bright border border-error-vermilion rounded-lg px-md py-sm focus-within:ring-1 focus-within:ring-error-vermilion transition-all mt-sm shadow-sm">
+<span class="material-symbols-outlined text-error-vermilion mr-sm text-[20px]">search</span>
+<input class="w-full bg-transparent border-none focus:ring-0 font-body-md text-body-md text-on-surface placeholder-outline-warm p-0 outline-none" placeholder="Search issues..." type="text" value="cycle validation"/>
+</div>
+<!-- Candidate List -->
+<div class="flex flex-col gap-xs mt-md">
+<!-- Candidate 1 -->
+<div class="flex items-start gap-md bg-surface p-md rounded-lg border border-outline-variant hover:bg-surface-container-high hover:border-outline-warm cursor-pointer transition-all">
+<span class="material-symbols-outlined text-outline-warm mt-0.5 text-[20px]">add_circle</span>
+<div class="flex-1 flex flex-col gap-base min-w-0">
+<div class="flex justify-between items-start gap-sm">
+<span class="font-body-lg text-body-lg text-on-surface truncate">Wire blocker cycle validation</span>
+<span class="font-label-sm text-label-sm text-outline-warm whitespace-nowrap mt-1">#1024</span>
+</div>
+<div class="flex flex-wrap items-center gap-xs mt-1">
+<span class="font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">blocked</span>
+<span class="font-label-sm text-label-sm border border-outline-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">P2</span>
+<span class="font-label-sm text-label-sm bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">logic</span>
+<span class="font-label-sm text-label-sm bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">backend</span>
+</div>
+</div>
+</div>
+<!-- Candidate 2 -->
+<div class="flex items-start gap-md bg-surface p-md rounded-lg border border-outline-variant hover:bg-surface-container-high hover:border-outline-warm cursor-pointer transition-all opacity-60">
+<span class="material-symbols-outlined text-outline-warm mt-0.5 text-[20px]">add_circle</span>
+<div class="flex-1 flex flex-col gap-base min-w-0">
+<div class="flex justify-between items-start gap-sm">
+<span class="font-body-lg text-body-lg text-on-surface truncate">Add MCP issue search</span>
+<span class="font-label-sm text-label-sm text-outline-warm whitespace-nowrap mt-1">#1042</span>
+</div>
+<div class="flex flex-wrap items-center gap-xs mt-1">
+<span class="font-label-sm text-label-sm bg-primary-fixed text-on-primary-fixed px-1.5 py-0.5 rounded-DEFAULT">new</span>
+<span class="font-label-sm text-label-sm border border-outline-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">P0</span>
+<span class="font-label-sm text-label-sm bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">mcp</span>
+<span class="font-label-sm text-label-sm bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded-DEFAULT">feature</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+</body></html>

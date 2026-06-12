@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Tala - Empty Board</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Newsreader:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed": "#9df4ce",
+                    "error": "#ba1a1a",
+                    "on-primary-container": "#87837f",
+                    "on-primary-fixed": "#1d1b18",
+                    "outline-variant": "#cdc5bc",
+                    "surface-bright": "#fdf9f2",
+                    "on-secondary": "#ffffff",
+                    "tertiary-container": "#370e00",
+                    "on-secondary-fixed-variant": "#00513a",
+                    "on-tertiary-container": "#d26431",
+                    "surface-variant": "#e6e2db",
+                    "primary-fixed-dim": "#cbc5c0",
+                    "tertiary": "#000000",
+                    "on-tertiary-fixed-variant": "#7e2c00",
+                    "background": "#fdf9f2",
+                    "primary-fixed": "#e8e1dc",
+                    "secondary-fixed-dim": "#81d7b2",
+                    "surface-indigo": "#2d2a7a",
+                    "error-vermilion": "#b42318",
+                    "surface-container-lowest": "#ffffff",
+                    "on-background": "#1c1c18",
+                    "surface-container": "#f1ede6",
+                    "on-secondary-container": "#0b7052",
+                    "secondary-container": "#9af1cb",
+                    "on-surface-variant": "#4b463f",
+                    "tertiary-fixed": "#ffdbce",
+                    "surface-dim": "#ded7cc",
+                    "primary-container": "#1d1b18",
+                    "surface-tint": "#615e5a",
+                    "inverse-primary": "#cbc5c0",
+                    "on-tertiary-fixed": "#370e00",
+                    "surface": "#fdf9f2",
+                    "surface-container-high": "#ebe8e1",
+                    "error-container": "#ffdad6",
+                    "on-error": "#ffffff",
+                    "surface-container-highest": "#e6e2db",
+                    "on-error-container": "#93000a",
+                    "outline": "#7c766e",
+                    "on-surface": "#1c1c18",
+                    "tertiary-fixed-dim": "#ffb598",
+                    "on-primary": "#ffffff",
+                    "inverse-on-surface": "#f4f0e9",
+                    "on-tertiary": "#ffffff",
+                    "on-primary-fixed-variant": "#494642",
+                    "primary": "#000000",
+                    "secondary": "#006c4e",
+                    "on-secondary-fixed": "#002115",
+                    "outline-warm": "#8b8173",
+                    "inverse-surface": "#31302c",
+                    "surface-container-low": "#f7f3ec"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "xs": "6px",
+                    "md": "12px",
+                    "sm": "8px",
+                    "base": "4px",
+                    "lg": "16px",
+                    "xl": "24px",
+                    "gutter-mobile": "12px"
+            },
+            "fontFamily": {
+                    "label-sm": [
+                            "Inter"
+                    ],
+                    "headline-lg": [
+                            "Newsreader"
+                    ],
+                    "headline-md": [
+                            "Newsreader"
+                    ],
+                    "headline-lg-mobile": [
+                            "Newsreader"
+                    ],
+                    "body-lg": [
+                            "Inter"
+                    ],
+                    "headline-xl": [
+                            "Newsreader"
+                    ],
+                    "label-md": [
+                            "Inter"
+                    ],
+                    "body-md": [
+                            "Inter"
+                    ]
+            },
+            "fontSize": {
+                    "label-sm": [
+                            "11px",
+                            {
+                                    "lineHeight": "14px",
+                                    "letterSpacing": "0.04em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "headline-lg": [
+                            "26px",
+                            {
+                                    "lineHeight": "32px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "headline-md": [
+                            "21px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "headline-lg-mobile": [
+                            "24px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-lg": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "headline-xl": [
+                            "32px",
+                            {
+                                    "lineHeight": "38px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "label-md": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "letterSpacing": "0.02em",
+                                    "fontWeight": "650"
+                            }
+                    ],
+                    "body-md": [
+                            "14px",
+                            {
+                                    "lineHeight": "20px",
+                                    "fontWeight": "400"
+                            }
+                    ]
+            }
+        },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.surface');
+            color: theme('colors.on-surface');
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen flex flex-col md:hidden pb-16 pt-14">
+<!-- TopAppBar Shared Component -->
+<header class="fixed top-0 w-full z-50 bg-surface border-b border-outline-variant flat no shadows transition-colors duration-200">
+<div class="flex justify-between items-center px-margin-mobile h-14 w-full max-w-[768px] mx-auto">
+<div class="flex items-center gap-md">
+<button class="text-on-surface-variant hover:bg-surface-container-high p-xs rounded-full flex items-center justify-center transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<span class="font-headline-lg-mobile text-headline-lg-mobile text-primary tracking-tight">Tala</span>
+</div>
+<div class="flex items-center gap-sm text-on-surface-variant">
+<button class="hover:bg-surface-container-high p-xs rounded-full transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button class="hover:bg-surface-container-high p-xs rounded-full transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+</button>
+<button class="hover:bg-surface-container-high p-xs rounded-full transition-colors duration-200 ml-sm">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant flex items-center justify-center overflow-hidden">
+<span class="font-label-sm text-label-sm text-on-surface-variant">al</span>
+</div>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-1 flex flex-col px-margin-mobile py-xl w-full max-w-[768px] mx-auto overflow-y-auto">
+<!-- Status Segmented Control -->
+<div class="flex gap-sm overflow-x-auto pb-sm mb-xl snap-x scrollbar-hide border-b border-outline-variant">
+<button class="snap-start shrink-0 px-md py-sm bg-surface-bright border border-outline-variant rounded-full flex items-center gap-xs font-label-md text-label-md text-primary">
+<div class="w-2 h-2 rounded-full bg-tertiary-fixed-dim"></div>
+                new
+            </button>
+<button class="snap-start shrink-0 px-md py-sm hover:bg-surface-container-low rounded-full flex items-center gap-xs font-label-md text-label-md text-on-surface-variant transition-colors">
+<div class="w-2 h-2 rounded-full bg-secondary-container"></div>
+                in_progress
+            </button>
+<button class="snap-start shrink-0 px-md py-sm hover:bg-surface-container-low rounded-full flex items-center gap-xs font-label-md text-label-md text-on-surface-variant transition-colors">
+<div class="w-2 h-2 rounded-full bg-surface-variant"></div>
+                completed
+            </button>
+<button class="snap-start shrink-0 px-md py-sm hover:bg-surface-container-low rounded-full flex items-center gap-xs font-label-md text-label-md text-on-surface-variant transition-colors">
+<div class="w-2 h-2 rounded-full bg-error-container"></div>
+                canceled
+            </button>
+</div>
+<!-- Empty State Container -->
+<div class="flex-1 flex flex-col items-center justify-center text-center mt-xl mb-xl px-lg">
+<div class="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mb-xl border border-outline-variant">
+<span class="material-symbols-outlined text-outline text-3xl" data-icon="inbox">inbox</span>
+</div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-primary mb-md">No issues yet</h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-[280px] mb-xl">
+                Create the first issue to start coordinating work.
+            </p>
+<button class="bg-primary text-on-primary font-label-md text-label-md px-xl py-md rounded flex items-center gap-sm hover:bg-inverse-surface transition-colors duration-200">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                Create issue
+            </button>
+</div>
+<!-- Secondary Context / Features -->
+<div class="mt-auto bg-surface-container-low border border-outline-variant rounded-lg p-lg">
+<h2 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mb-md border-b border-outline-variant pb-sm">Issue Capabilities</h2>
+<ul class="space-y-md">
+<li class="flex items-start gap-md">
+<span class="material-symbols-outlined text-outline text-[16px] mt-0.5" data-icon="markdown">markdown</span>
+<span class="font-body-md text-body-md text-on-surface">Markdown descriptions</span>
+</li>
+<li class="flex items-start gap-md">
+<span class="material-symbols-outlined text-outline text-[16px] mt-0.5" data-icon="block">block</span>
+<span class="font-body-md text-body-md text-on-surface">Dependency blockers</span>
+</li>
+<li class="flex items-start gap-md">
+<span class="material-symbols-outlined text-outline text-[16px] mt-0.5" data-icon="account_tree">account_tree</span>
+<span class="font-body-md text-body-md text-on-surface">Child relationships</span>
+</li>
+<li class="flex items-start gap-md">
+<span class="material-symbols-outlined text-outline text-[16px] mt-0.5" data-icon="chat_bubble_outline">chat_bubble_outline</span>
+<span class="font-body-md text-body-md text-on-surface">Collaborative comments</span>
+</li>
+</ul>
+</div>
+</main>
+<!-- BottomNavBar Shared Component -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface-container-high border-t-0 flat no shadows">
+<div class="fixed bottom-0 left-0 right-0 flex justify-around items-center h-16 px-gutter-mobile max-w-[768px] mx-auto">
+<!-- Active: Board -->
+<button class="flex flex-col items-center justify-center text-surface-indigo font-bold scale-95 transition-transform duration-150 w-full h-full hover:bg-surface-container-highest">
+<span class="material-symbols-outlined fill mb-xs" data-icon="grid_view" data-weight="fill">grid_view</span>
+<span class="font-label-sm text-label-sm">Board</span>
+</button>
+<!-- Inactive: Hierarchy -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant scale-95 transition-transform duration-150 w-full h-full hover:bg-surface-container-highest">
+<span class="material-symbols-outlined mb-xs" data-icon="account_tree">account_tree</span>
+<span class="font-label-sm text-label-sm font-normal">Hierarchy</span>
+</button>
+<!-- Inactive: Blockers -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant scale-95 transition-transform duration-150 w-full h-full hover:bg-surface-container-highest">
+<span class="material-symbols-outlined mb-xs" data-icon="block">block</span>
+<span class="font-label-sm text-label-sm font-normal">Blockers</span>
+</button>
+<!-- Inactive: Profile -->
+<button class="flex flex-col items-center justify-center text-on-surface-variant scale-95 transition-transform duration-150 w-full h-full hover:bg-surface-container-highest">
+<span class="material-symbols-outlined mb-xs" data-icon="person">person</span>
+<span class="font-label-sm text-label-sm font-normal">Profile</span>
+</button>
+</div>
+</nav>
+</body></html>

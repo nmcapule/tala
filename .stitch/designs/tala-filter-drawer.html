@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Filter Drawer - Tala</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Newsreader:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#fffdf8",
+                        "surface-dim": "#dddad3",
+                        "outline-variant": "#cdc5bc",
+                        "surface": "#fdf9f2",
+                        "on-secondary-container": "#0b7052",
+                        "tertiary-fixed-dim": "#ffb598",
+                        "on-surface-variant": "#4b463f",
+                        "surface-container-high": "#ebe8e1",
+                        "surface-indigo": "#2d2a7a",
+                        "on-primary-fixed": "#1d1b18",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed-variant": "#00513a",
+                        "on-surface": "#1c1c18",
+                        "secondary-fixed": "#9df4ce",
+                        "on-primary-container": "#87837f",
+                        "error-container": "#ffdad6",
+                        "tertiary": "#000000",
+                        "secondary": "#006c4e",
+                        "secondary-fixed-dim": "#81d7b2",
+                        "primary-fixed-dim": "#cbc5c0",
+                        "background": "#fdf9f2",
+                        "on-secondary": "#ffffff",
+                        "inverse-surface": "#31302c",
+                        "on-secondary-fixed": "#002115",
+                        "primary": "#000000",
+                        "on-tertiary-fixed": "#370e00",
+                        "inverse-on-surface": "#f4f0e9",
+                        "on-primary": "#ffffff",
+                        "error-vermilion": "#b42318",
+                        "secondary-container": "#9af1cb",
+                        "on-tertiary-fixed-variant": "#7e2c00",
+                        "primary-container": "#1d1b18",
+                        "on-background": "#1c1c18",
+                        "surface-container": "#f1ede6",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#e8e1dc",
+                        "surface-container-highest": "#e6e2db",
+                        "inverse-primary": "#cbc5c0",
+                        "tertiary-container": "#370e00",
+                        "surface-container-low": "#f7f3ec",
+                        "on-primary-fixed-variant": "#494642",
+                        "surface-variant": "#e6e2db",
+                        "outline": "#7c766e",
+                        "on-tertiary-container": "#d26431",
+                        "tertiary-fixed": "#ffdbce",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-error": "#ffffff",
+                        "surface-tint": "#615e5a",
+                        "outline-warm": "#8b8173"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xl": "24px",
+                        "sm": "8px",
+                        "md": "12px",
+                        "lg": "16px",
+                        "base": "4px",
+                        "margin-mobile": "16px",
+                        "xs": "6px",
+                        "gutter-mobile": "12px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-xl": ["Newsreader"],
+                        "headline-lg-mobile": ["Newsreader"],
+                        "label-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Newsreader"],
+                        "headline-lg": ["Newsreader"]
+                    },
+                    "fontSize": {
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "650" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-xl": ["32px", { "lineHeight": "38px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["21px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "headline-lg": ["26px", { "lineHeight": "32px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .drawer-shadow {
+            box-shadow: 0px -4px 12px 0px rgba(25, 23, 20, 0.08);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body-md text-on-surface antialiased h-screen w-full relative overflow-hidden flex justify-center">
+<!-- Background Context (Dimmed Triage Board) -->
+<div class="absolute inset-0 w-full h-full pointer-events-none" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA3xFlZMp9VJUKWTR34Ay5KEBAVomYLPSQg67jwqmyJWrMxVqtaRedRw4iwxHeG_9syndC-A5LiYyWk-KFNirOixuMCwMCgd3y4746gjIHm54G1JJjyo043ZZDDxvTAXE7bR7Yp5Zii5fRSjvHSzQZXYbFZdZa1MVhOrPR_phoKipswG7XZCzeSpv9jP6QNsJfHeDrL7eHuH9PV84JeH0E3yae-b7s3oNqbLhoaEKXq92JOBdr03WHVSNRtpt2i85ouzM0UWvVXdm0'); background-size: cover; background-position: center; opacity: 0.3; filter: blur(2px);">
+</div>
+<!-- Scrim overlay -->
+<div class="absolute inset-0 bg-surface/40 backdrop-blur-sm z-10 pointer-events-none"></div>
+<!-- Mobile Container Grid constraints -->
+<div class="w-full max-w-[768px] h-full relative z-20 flex flex-col justify-end">
+<!-- Filter Drawer -->
+<div class="bg-surface-container-lowest w-full rounded-t-xl drawer-shadow flex flex-col overflow-hidden max-h-[751px]">
+<!-- Handle -->
+<div class="w-full flex justify-center pt-sm pb-base">
+<div class="w-12 h-1 bg-outline-variant rounded-full opacity-50"></div>
+</div>
+<!-- Header -->
+<div class="px-margin-mobile py-md flex items-center justify-between border-b border-outline-variant">
+<div class="flex items-center gap-md">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-primary tracking-tight">Filter issues</h2>
+<span class="bg-surface-indigo text-on-secondary font-label-sm text-label-sm px-2 py-0.5 rounded-full mt-1">3 active</span>
+</div>
+<button aria-label="Close filters" class="text-on-surface-variant hover:text-primary transition-colors p-1">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">close</span>
+</button>
+</div>
+<!-- Content Scroll Area -->
+<div class="flex-1 overflow-y-auto px-margin-mobile py-lg flex flex-col gap-xl">
+<!-- Search -->
+<div class="flex flex-col gap-sm">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="w-full bg-surface-bright border border-outline-variant rounded-lg pl-10 pr-md py-2 font-body-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-outline-warm focus:ring-1 focus:ring-outline-warm transition-all" placeholder="e.g. markdown" type="text"/>
+</div>
+</div>
+<!-- Priority (Multi-select Row) -->
+<div class="flex flex-col gap-md">
+<label class="font-label-md text-label-md text-on-surface-variant uppercase">Priority</label>
+<div class="flex gap-sm">
+<button class="flex-1 py-1.5 border border-outline-variant bg-surface-bright text-on-surface font-label-md text-label-md rounded hover:bg-surface transition-colors">P0</button>
+<button class="flex-1 py-1.5 border border-primary bg-primary text-on-primary font-label-md text-label-md rounded">P1</button>
+<button class="flex-1 py-1.5 border border-primary bg-primary text-on-primary font-label-md text-label-md rounded">P2</button>
+<button class="flex-1 py-1.5 border border-outline-variant bg-surface-bright text-on-surface font-label-md text-label-md rounded hover:bg-surface transition-colors">P3</button>
+<button class="flex-1 py-1.5 border border-outline-variant bg-surface-bright text-on-surface font-label-md text-label-md rounded hover:bg-surface transition-colors">P4</button>
+</div>
+</div>
+<!-- Assignee -->
+<div class="flex flex-col gap-md">
+<label class="font-label-md text-label-md text-on-surface-variant uppercase">Assignee</label>
+<div class="flex flex-wrap gap-sm">
+<button class="flex items-center gap-xs px-md py-1.5 border border-outline-variant bg-surface-bright rounded-full hover:bg-surface transition-colors">
+<div class="w-4 h-4 bg-tertiary-fixed-dim rounded-full flex items-center justify-center text-[8px] font-bold text-on-tertiary-fixed">A</div>
+<span class="font-label-sm text-label-sm text-on-surface">alex</span>
+</button>
+<button class="flex items-center gap-xs px-md py-1.5 border border-surface-indigo bg-surface-container-high rounded-full">
+<div class="w-4 h-4 bg-secondary-container rounded-full flex items-center justify-center text-[8px] font-bold text-on-secondary-container">S</div>
+<span class="font-label-sm text-label-sm text-surface-indigo">sam</span>
+</button>
+<button class="flex items-center gap-xs px-md py-1.5 border border-outline-variant bg-surface-bright rounded-full hover:bg-surface transition-colors">
+<div class="w-4 h-4 bg-surface-dim rounded-full flex items-center justify-center text-[8px] font-bold text-on-surface-variant">
+<span class="material-symbols-outlined text-[10px]">smart_toy</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface">agent</span>
+</button>
+</div>
+</div>
+<!-- Tags -->
+<div class="flex flex-col gap-md">
+<label class="font-label-md text-label-md text-on-surface-variant uppercase">Tags</label>
+<div class="flex flex-wrap gap-sm">
+<button class="px-md py-1 bg-surface-container text-on-surface-variant font-label-sm text-label-sm border border-outline-variant rounded-md hover:bg-surface-container-high transition-colors">mcp</button>
+<button class="px-md py-1 bg-surface-container text-on-surface-variant font-label-sm text-label-sm border border-outline-variant rounded-md hover:bg-surface-container-high transition-colors">api</button>
+<button class="px-md py-1 bg-primary text-on-primary font-label-sm text-label-sm border border-primary rounded-md">security</button>
+<button class="px-md py-1 bg-surface-container text-on-surface-variant font-label-sm text-label-sm border border-outline-variant rounded-md hover:bg-surface-container-high transition-colors">editor</button>
+<button class="px-md py-1 bg-surface-container text-on-surface-variant font-label-sm text-label-sm border border-outline-variant rounded-md hover:bg-surface-container-high transition-colors">backend</button>
+</div>
+</div>
+<!-- Status -->
+<div class="flex flex-col gap-md">
+<label class="font-label-md text-label-md text-on-surface-variant uppercase">Status</label>
+<div class="grid grid-cols-2 gap-sm">
+<button class="flex items-center gap-sm p-sm border border-outline-variant bg-surface-bright rounded text-left hover:bg-surface transition-colors">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">radio_button_unchecked</span>
+<span class="font-label-md text-label-md text-on-surface">new</span>
+</button>
+<button class="flex items-center gap-sm p-sm border border-outline-variant bg-surface-bright rounded text-left hover:bg-surface transition-colors">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">timelapse</span>
+<span class="font-label-md text-label-md text-on-surface">in_progress</span>
+</button>
+<button class="flex items-center gap-sm p-sm border border-outline-variant bg-surface-bright rounded text-left hover:bg-surface transition-colors">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">check_circle</span>
+<span class="font-label-md text-label-md text-on-surface">completed</span>
+</button>
+<button class="flex items-center gap-sm p-sm border border-outline-variant bg-surface-bright rounded text-left hover:bg-surface transition-colors">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">cancel</span>
+<span class="font-label-md text-label-md text-on-surface">canceled</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Footer Actions -->
+<div class="border-t border-outline-variant bg-surface-container-lowest p-margin-mobile flex flex-col gap-sm pb-[max(16px,env(safe-area-inset-bottom))]">
+<!-- Summary Row -->
+<div class="flex flex-wrap gap-x-md gap-y-xs pb-sm">
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span> P0-P2
+                    </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span> security
+                    </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span> assignee: sam
+                    </span>
+</div>
+<div class="flex gap-md">
+<button class="flex-1 py-3 px-lg border border-outline-warm bg-surface-bright text-on-surface font-label-md text-label-md rounded hover:bg-surface transition-colors">
+                        Reset
+                    </button>
+<button class="flex-[2] py-3 px-lg bg-primary text-on-primary font-label-md text-label-md rounded hover:opacity-90 transition-opacity">
+                        Apply filters
+                    </button>
+</div>
+</div>
+</div>
+</div>
+</body></html>

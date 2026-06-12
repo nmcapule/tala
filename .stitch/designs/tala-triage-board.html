@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Tala - Triage Board</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Newsreader:opsz,wght@6..72,400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-surface": "#31302c",
+                        "on-secondary": "#ffffff",
+                        "on-surface-variant": "#4b463f",
+                        "on-secondary-fixed-variant": "#00513a",
+                        "surface-bright": "#fffdf8",
+                        "surface": "#fdf9f2",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-container": "#9af1cb",
+                        "on-error": "#ffffff",
+                        "surface-dim": "#dddad3",
+                        "secondary": "#006c4e",
+                        "primary-container": "#1d1b18",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed": "#370e00",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#f1ede6",
+                        "primary-fixed-dim": "#cbc5c0",
+                        "primary-fixed": "#e8e1dc",
+                        "on-primary": "#ffffff",
+                        "on-background": "#1c1c18",
+                        "surface-container-highest": "#e6e2db",
+                        "primary": "#000000",
+                        "background": "#fdf9f2",
+                        "on-tertiary-fixed-variant": "#7e2c00",
+                        "inverse-on-surface": "#f4f0e9",
+                        "on-tertiary-container": "#d26431",
+                        "surface-tint": "#615e5a",
+                        "outline": "#7c766e",
+                        "surface-variant": "#e6e2db",
+                        "surface-container-low": "#f7f3ec",
+                        "tertiary-fixed-dim": "#ffb598",
+                        "secondary-fixed": "#9df4ce",
+                        "surface-indigo": "#2d2a7a",
+                        "surface-container-high": "#ebe8e1",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#002115",
+                        "tertiary-fixed": "#ffdbce",
+                        "on-primary-fixed": "#1d1b18",
+                        "secondary-fixed-dim": "#81d7b2",
+                        "on-primary-fixed-variant": "#494642",
+                        "outline-warm": "#8b8173",
+                        "inverse-primary": "#cbc5c0",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#1c1c18",
+                        "error-vermilion": "#b42318",
+                        "tertiary-container": "#370e00",
+                        "on-primary-container": "#87837f",
+                        "outline-variant": "#cdc5bc",
+                        "on-secondary-container": "#0b7052",
+                        "tertiary": "#000000"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-mobile": "16px",
+                        "base": "4px",
+                        "lg": "16px",
+                        "gutter-mobile": "12px",
+                        "xl": "24px",
+                        "xs": "6px",
+                        "sm": "8px",
+                        "md": "12px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Newsreader"],
+                        "body-lg": ["Inter"],
+                        "headline-xl": ["Newsreader"],
+                        "label-sm": ["Inter"],
+                        "headline-md": ["Newsreader"],
+                        "headline-lg-mobile": ["Newsreader"]
+                    },
+                    "fontSize": {
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "650" }],
+                        "headline-lg": ["26px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-xl": ["32px", { "lineHeight": "38px", "fontWeight": "600" }],
+                        "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }],
+                        "headline-md": ["21px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "28px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
+        /* Custom scrollbar for horizontal lists */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md antialiased min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky z-40 bg-surface dark:bg-surface border-b border-outline-variant transition-colors duration-200">
+<div class="flex justify-between items-center px-margin-mobile py-sm w-full">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-high border border-outline-variant flex items-center justify-center">
+<img alt="alex profile" class="w-full h-full object-cover" data-alt="A minimalist, high-contrast portrait of a professional against a stark, light-mode background. The lighting is crisp and even, highlighting sharp features without heavy shadows. The aesthetic is clean, modern, and ledger-like, fitting perfectly within a premium operations dashboard environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9BcLl1Zg5ZlxvdvegMmGQuLusM7N3usGlq99pjidm9ZimFETbG2538d8mLUDWMLeiJw5JoeUiYmzW729wiCA_lfmUKa-Ci7Zc0W_puQjxZiwBBF2XVkIgxOLAxd_2uKwZZ4N1URME8nz3ploUhYXREB1BG-2qt1KaFMdvXiX4jLaih87wP1kZg2z8mHXHzVgqiXPiJT7D7YjRRcygc5moqzuWYZl6TM1YaCAYO8vJWFwYEIeyhDBbE3A9KfxSNzuBI8hmSqYNUCg"/>
+</div>
+<div class="flex flex-col">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile font-bold text-primary dark:text-on-surface tracking-tight leading-none">Tala</h1>
+<span class="font-label-sm text-label-sm text-on-surface-variant mt-0.5">alex</span>
+</div>
+</div>
+<div class="flex items-center gap-1">
+<button class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors duration-200 text-primary dark:text-on-surface">
+<span class="material-symbols-outlined text-[20px]" data-weight="fill" style="font-variation-settings: 'FILL' 0;">search</span>
+</button>
+<button class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors duration-200 text-primary dark:text-on-surface">
+<span class="material-symbols-outlined text-[20px]" data-weight="fill" style="font-variation-settings: 'FILL' 0;">tune</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col w-full max-w-[768px] mx-auto pb-24">
+<!-- Summary Strip -->
+<div class="px-margin-mobile py-xs bg-surface-container-lowest border-b border-outline-variant flex items-center justify-between overflow-x-auto hide-scrollbar">
+<div class="flex items-center gap-4 min-w-max">
+<div class="flex items-center gap-1.5">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">New</span>
+<span class="font-label-sm text-label-sm text-primary">12</span>
+</div>
+<div class="w-px h-3 bg-outline-variant"></div>
+<div class="flex items-center gap-1.5">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">In Progress</span>
+<span class="font-label-sm text-label-sm text-primary">5</span>
+</div>
+<div class="w-px h-3 bg-outline-variant"></div>
+<div class="flex items-center gap-1.5">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Completed</span>
+<span class="font-label-sm text-label-sm text-primary">84</span>
+</div>
+<div class="w-px h-3 bg-outline-variant"></div>
+<div class="flex items-center gap-1.5">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Canceled</span>
+<span class="font-label-sm text-label-sm text-primary">3</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 ml-4 pl-4 border-l border-outline-variant min-w-max">
+<span class="material-symbols-outlined text-[14px] text-error-vermilion" style="font-variation-settings: 'FILL' 1;">block</span>
+<span class="font-label-sm text-label-sm text-error-vermilion uppercase tracking-widest">Blocked: 2</span>
+</div>
+</div>
+<!-- Status Selector (Segmented Control) -->
+<div class="px-margin-mobile py-md">
+<div class="flex p-1 bg-surface-container-high rounded-DEFAULT border border-outline-variant overflow-x-auto hide-scrollbar">
+<button class="flex-1 min-w-[80px] py-1.5 px-3 bg-surface-bright shadow-sm rounded-DEFAULT border border-outline-variant font-label-md text-label-md text-primary text-center transition-all">
+                    new
+                </button>
+<button class="flex-1 min-w-[90px] py-1.5 px-3 text-on-surface-variant hover:bg-surface-container-highest rounded-DEFAULT font-label-md text-label-md text-center transition-all">
+                    in_progress
+                </button>
+<button class="flex-1 min-w-[90px] py-1.5 px-3 text-on-surface-variant hover:bg-surface-container-highest rounded-DEFAULT font-label-md text-label-md text-center transition-all">
+                    completed
+                </button>
+<button class="flex-1 min-w-[80px] py-1.5 px-3 text-on-surface-variant hover:bg-surface-container-highest rounded-DEFAULT font-label-md text-label-md text-center transition-all">
+                    canceled
+                </button>
+</div>
+</div>
+<!-- Issue List -->
+<div class="flex flex-col gap-gutter-mobile px-margin-mobile">
+<!-- Card 1 -->
+<article class="bg-surface-bright border border-outline-variant rounded-lg p-md relative overflow-hidden flex flex-col gap-2 hover:bg-surface-container-lowest transition-colors cursor-pointer group">
+<div class="absolute left-0 top-0 bottom-0 w-[3px] bg-primary"></div>
+<div class="flex justify-between items-start pl-1">
+<h2 class="font-body-lg text-body-lg text-primary leading-tight font-semibold pr-4">Add MCP issue search</h2>
+<span class="font-label-sm text-label-sm text-on-surface-variant shrink-0 mt-1">#1042</span>
+</div>
+<div class="flex flex-wrap items-center gap-x-3 gap-y-2 pl-1 mt-1">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-surface-indigo" style="font-variation-settings: 'FILL' 1;">priority_high</span>
+<span class="font-label-sm text-label-sm text-primary">P0</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="px-1.5 py-0.5 bg-surface-container-high rounded text-[10px] font-label-sm text-on-surface-variant uppercase tracking-wider border border-outline-variant">mcp</span>
+<span class="px-1.5 py-0.5 bg-surface-container-high rounded text-[10px] font-label-sm text-on-surface-variant uppercase tracking-wider border border-outline-variant">feature</span>
+</div>
+<div class="flex-1"></div>
+<div class="flex items-center gap-3 text-on-surface-variant">
+<div class="flex items-center gap-1" title="Children">
+<span class="material-symbols-outlined text-[14px]">account_tree</span>
+<span class="font-label-sm text-label-sm">2</span>
+</div>
+<div class="flex items-center gap-1" title="Comments">
+<span class="material-symbols-outlined text-[14px]">chat_bubble</span>
+<span class="font-label-sm text-label-sm">5</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 2 -->
+<article class="bg-surface-container-lowest border border-outline-variant rounded-lg p-md relative overflow-hidden flex flex-col gap-2 hover:bg-surface-bright transition-colors cursor-pointer group">
+<div class="absolute left-0 top-0 bottom-0 w-[3px] bg-outline-warm"></div>
+<div class="flex justify-between items-start pl-1">
+<h2 class="font-body-lg text-body-lg text-primary leading-tight font-semibold pr-4">Sanitize Markdown preview</h2>
+<span class="font-label-sm text-label-sm text-on-surface-variant shrink-0 mt-1">#1038</span>
+</div>
+<div class="flex flex-wrap items-center gap-x-3 gap-y-2 pl-1 mt-1">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-outline-warm">priority_high</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">P1</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="px-1.5 py-0.5 bg-surface-container rounded text-[10px] font-label-sm text-on-surface-variant uppercase tracking-wider border border-outline-variant">security</span>
+<span class="px-1.5 py-0.5 bg-surface-container rounded text-[10px] font-label-sm text-on-surface-variant uppercase tracking-wider border border-outline-variant">editor</span>
+</div>
+<div class="flex-1"></div>
+<div class="flex items-center gap-3 text-on-surface-variant">
+<div class="flex items-center gap-1 opacity-50" title="Children">
+<span class="material-symbols-outlined text-[14px]">account_tree</span>
+<span class="font-label-sm text-label-sm">0</span>
+</div>
+<div class="flex items-center gap-1" title="Comments">
+<span class="material-symbols-outlined text-[14px]">chat_bubble</span>
+<span class="font-label-sm text-label-sm">12</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 3 -->
+<article class="bg-surface-container-low border border-outline-variant rounded-lg p-md relative overflow-hidden flex flex-col gap-2 hover:bg-surface-bright transition-colors cursor-pointer group">
+<div class="absolute left-0 top-0 bottom-0 w-[3px] bg-outline"></div>
+<div class="flex justify-between items-start pl-1">
+<h2 class="font-body-lg text-body-lg text-primary leading-tight font-semibold pr-4">Wire blocker cycle validation</h2>
+<span class="font-label-sm text-label-sm text-on-surface-variant shrink-0 mt-1">#1024</span>
+</div>
+<div class="flex flex-wrap items-center gap-x-3 gap-y-2 pl-1 mt-1">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-outline">priority_high</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">P2</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="px-1.5 py-0.5 bg-surface-container rounded text-[10px] font-label-sm text-on-surface-variant uppercase tracking-wider border border-outline-variant">logic</span>
+<span class="px-1.5 py-0.5 bg-surface-container rounded text-[10px] font-label-sm text-on-surface-variant uppercase tracking-wider border border-outline-variant">backend</span>
+</div>
+<div class="flex items-center gap-1 bg-error-container/30 px-1.5 py-0.5 rounded border border-error-container">
+<span class="material-symbols-outlined text-[12px] text-error-vermilion" style="font-variation-settings: 'FILL' 1;">block</span>
+<span class="font-label-sm text-[10px] text-error-vermilion uppercase tracking-wider">Blocked</span>
+</div>
+<div class="flex-1"></div>
+<div class="flex items-center gap-3 text-on-surface-variant">
+<div class="flex items-center gap-1" title="Children">
+<span class="material-symbols-outlined text-[14px]">account_tree</span>
+<span class="font-label-sm text-label-sm">1</span>
+</div>
+<div class="flex items-center gap-1" title="Comments">
+<span class="material-symbols-outlined text-[14px]">chat_bubble</span>
+<span class="font-label-sm text-label-sm">3</span>
+</div>
+</div>
+</div>
+</article>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface-container-high dark:bg-surface-container-high border-t border-outline-variant md:hidden">
+<div class="flex justify-around items-center w-full h-16 px-margin-mobile pb-safe">
+<button class="flex flex-col items-center justify-center text-surface-indigo dark:text-secondary-fixed hover:opacity-80 transition-all duration-200 active:scale-95 group w-16">
+<div class="w-8 h-8 rounded-full bg-surface-indigo/10 flex items-center justify-center mb-0.5">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+</div>
+<span class="font-label-sm text-[10px] tracking-wide font-semibold">Board</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant hover:opacity-80 transition-all duration-200 active:scale-95 group w-16">
+<div class="w-8 h-8 rounded-full flex items-center justify-center mb-0.5 group-hover:bg-on-surface-variant/5 transition-colors">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 0;">account_tree</span>
+</div>
+<span class="font-label-sm text-[10px] tracking-wide">Hierarchy</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant hover:opacity-80 transition-all duration-200 active:scale-95 group w-16">
+<div class="w-8 h-8 rounded-full flex items-center justify-center mb-0.5 group-hover:bg-on-surface-variant/5 transition-colors">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 0;">block</span>
+</div>
+<span class="font-label-sm text-[10px] tracking-wide">Blockers</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant hover:opacity-80 transition-all duration-200 active:scale-95 group w-16">
+<div class="w-8 h-8 rounded-full flex items-center justify-center mb-0.5 group-hover:bg-on-surface-variant/5 transition-colors">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 0;">person</span>
+</div>
+<span class="font-label-sm text-[10px] tracking-wide">Profile</span>
+</button>
+</div>
+</nav>
+</body></html>
