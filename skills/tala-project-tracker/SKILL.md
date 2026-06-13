@@ -9,14 +9,14 @@ description: Use Tala as a project-local issue tracker for planning, effort mana
 
 Use Tala as the durable project work ledger. Before meaningful project work, consult Tala. During work, keep the relevant issue updated. At interruption or handoff, leave a comment that lets another agent resume.
 
-Prefer a configured Tala MCP server named `tala` when available. If MCP tools are not available, use `scripts/tala_helper.py` from this skill against the project-local server.
+Prefer a configured Tala MCP server named `tala` when available. In this repo, Codex auto-starts that server over stdio from `.codex/config.toml`; it does not require `make own-db`. If MCP tools are not available, use `scripts/tala_helper.py` from this skill against the project-local HTTP server.
 
 ## Project Setup
 
 - Default DB: `tala.db` in the project root.
-- Default URL: `TALA_URL` or `http://127.0.0.1:8081`.
+- Default helper URL: `TALA_URL` or `http://127.0.0.1:8081`.
 - Default username: `TALA_USERNAME` or `agent`.
-- If the server is not running, start it with the project command when available:
+- If using the helper and the HTTP server is not running, start it with the project command when available:
   - `make own-db`
   - otherwise `python <skill>/scripts/tala_helper.py serve`
 - For detailed taxonomy, priority rules, and comment templates, read `references/tala-workflow.md`.

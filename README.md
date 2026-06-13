@@ -158,6 +158,14 @@ Mutating REST requests require `X-Tala-Username`.
 
 The MCP endpoint is `/mcp`. It supports JSON-RPC initialize, tool listing/calls, resource listing, resource-template listing, and resource reads.
 
+For Codex integration in this repo, `.codex/config.toml` auto-starts the same MCP surface over stdio:
+
+```sh
+go run ./cmd/tala-mcp-stdio -db tala.db
+```
+
+Use the HTTP `/mcp` endpoint when running the full Tala server for browser, REST, or smoke-test workflows. Use the stdio command for clients, such as Codex, that launch MCP servers directly.
+
 Tools:
 
 - `issue_create`
@@ -201,4 +209,4 @@ Then invoke it in Codex with:
 $tala-project-tracker plan this work in Tala and keep the issue updated
 ```
 
-The skill defaults to `tala.db` in the project root and `http://127.0.0.1:8081`. It prefers a configured Tala MCP server when one is available, and otherwise uses its bundled helper script.
+The project-scoped Codex config auto-starts Tala MCP over stdio against `tala.db`. The skill defaults to `tala.db` in the project root and falls back to the helper at `http://127.0.0.1:8081` when MCP tools are unavailable.

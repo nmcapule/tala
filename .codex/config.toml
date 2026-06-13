@@ -1,0 +1,7 @@
+[mcp_servers.tala]
+command = "go"
+args = ["run", "./cmd/tala-mcp-stdio", "-db", "tala.db"]
+enabled = true
+required = false
+startup_timeout_sec = 30
+tool_timeout_sec = 60

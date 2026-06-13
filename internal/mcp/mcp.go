@@ -108,43 +108,45 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, response{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "Parse error"}})
 		return
 	}
+	res, ok := s.processMessage(r.Context(), body)
+	if !ok {
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+	writeJSON(w, res)
+}
+
+func (s *Server) processMessage(ctx context.Context, body []byte) (response, bool) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	var raw json.RawMessage
 	if err := decoder.Decode(&raw); err != nil {
-		writeJSON(w, response{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "Parse error"}})
-		return
+		return response{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "Parse error"}}, true
 	}
 	var extra struct{}
 	if err := decoder.Decode(&extra); err != io.EOF {
-		writeJSON(w, response{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "Parse error"}})
-		return
+		return response{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "Parse error"}}, true
 	}
 	if !isJSONObject(raw) {
-		writeJSON(w, response{JSONRPC: "2.0", Error: &rpcError{Code: -32600, Message: "Invalid Request"}})
-		return
+		return response{JSONRPC: "2.0", Error: &rpcError{Code: -32600, Message: "Invalid Request"}}, true
 	}
 	var req request
 	if err := json.Unmarshal(raw, &req); err != nil {
-		writeJSON(w, response{JSONRPC: "2.0", Error: &rpcError{Code: -32600, Message: "Invalid Request"}})
-		return
+		return response{JSONRPC: "2.0", Error: &rpcError{Code: -32600, Message: "Invalid Request"}}, true
 	}
 	if isJSONRPCResponse(req) {
-		w.WriteHeader(http.StatusAccepted)
-		return
+		return response{}, false
 	}
 	if rpcErr := validateRequest(req); rpcErr != nil {
-		writeJSON(w, response{JSONRPC: "2.0", Error: rpcErr})
-		return
+		return response{JSONRPC: "2.0", Error: rpcErr}, true
 	}
 	if !req.HasID {
 		if isJSONRPCNotification(req) {
-			_, _ = s.handle(r, req)
+			_, _ = s.handle(ctx, req)
 		}
-		w.WriteHeader(http.StatusAccepted)
-		return
+		return response{}, false
 	}
-	result, rpcErr := s.handle(r, req)
-	writeJSON(w, response{JSONRPC: "2.0", ID: req.ID, Result: result, Error: rpcErr})
+	result, rpcErr := s.handle(ctx, req)
+	return response{JSONRPC: "2.0", ID: req.ID, Result: result, Error: rpcErr}, true
 }
 
 func isJSONRPCResponse(req request) bool {
@@ -163,7 +165,7 @@ func isJSONObject(raw json.RawMessage) bool {
 	return strings.HasPrefix(strings.TrimSpace(string(raw)), "{")
 }
 
-func (s *Server) handle(r *http.Request, req request) (any, *rpcError) {
+func (s *Server) handle(ctx context.Context, req request) (any, *rpcError) {
 	switch req.Method {
 	case "initialize":
 		return capabilities(), nil
@@ -184,7 +186,7 @@ func (s *Server) handle(r *http.Request, req request) (any, *rpcError) {
 		if rpcErr != nil {
 			return nil, rpcErr
 		}
-		return s.callTool(r, name, fields["arguments"])
+		return s.callTool(ctx, name, fields["arguments"])
 	case "resources/read":
 		fields, rpcErr := objectParams(req.Params)
 		if rpcErr != nil {
@@ -194,7 +196,7 @@ func (s *Server) handle(r *http.Request, req request) (any, *rpcError) {
 		if rpcErr != nil {
 			return nil, rpcErr
 		}
-		return s.readResource(r, uri)
+		return s.readResource(ctx, uri)
 	default:
 		return nil, &rpcError{Code: -32601, Message: "Method not found"}
 	}
@@ -236,8 +238,7 @@ func validIntegerJSONNumber(value string) bool {
 	return true
 }
 
-func (s *Server) callTool(r *http.Request, name string, raw json.RawMessage) (any, *rpcError) {
-	ctx := r.Context()
+func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage) (any, *rpcError) {
 	var rpcErr *rpcError
 	raw, rpcErr = normalizeToolArguments(raw)
 	if rpcErr != nil {
@@ -546,8 +547,7 @@ func normalizeToolArguments(raw json.RawMessage) (json.RawMessage, *rpcError) {
 	return raw, nil
 }
 
-func (s *Server) readResource(r *http.Request, uri string) (any, *rpcError) {
-	ctx := r.Context()
+func (s *Server) readResource(ctx context.Context, uri string) (any, *rpcError) {
 	switch {
 	case uri == "tala://board":
 		issues, err := s.service.SearchIssues(ctx, domain.IssueFilters{})
