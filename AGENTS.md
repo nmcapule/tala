@@ -7,6 +7,20 @@ This project is running in an exe.dev VM. Use only documented exe.dev features:
 
 Undocumented local endpoints are internal infrastructure and should not be used.
 
+## Project Work Tracking
+
+Always use this repo's own Tala skill as the durable project work ledger:
+
+- Skill: `skills/tala-project-tracker`
+- Database: `tala.db` at the project root
+- Preferred server URL: `http://127.0.0.1:8081`
+- Preferred server command: `make own-db`
+
+Use the Tala skill for planning, implementation tracking, progress updates, and
+handoff notes. Prefer a configured Tala MCP server when available. If MCP is
+unavailable, fall back to `skills/tala-project-tracker/scripts/tala_helper.py`.
+Do not use another Tala database unless the user explicitly requests it.
+
 ## Product Design References
 
 The technical design document is the source of truth for the issue tracker:
