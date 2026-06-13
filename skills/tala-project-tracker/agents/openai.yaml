@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tala Project Tracker"
+  short_description: "Track project work in Tala issues"
+  default_prompt: "Use $tala-project-tracker to plan this work in Tala and keep the issue updated."
