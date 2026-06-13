@@ -1,7 +1,7 @@
 [mcp_servers.tala]
-command = "go"
-args = ["run", "./cmd/tala-mcp-stdio", "-db", "tala.db"]
+command = "./.codex/tala-mcp-stdio.sh"
+args = ["-db", "tala.db"]
 enabled = true
 required = false
-startup_timeout_sec = 30
+startup_timeout_sec = 120
 tool_timeout_sec = 60
