@@ -53,3 +53,33 @@ Verification evidence:
 - `go test ./internal/mcp`
 - `go test ./...`
 - `scripts/smoke.sh` MCP coverage referenced by completed child issues
+
+## Roadmap: backend/API hardening
+
+Tala issue: `issue_80be304d-53c9-4155-b7fb-f9e0dcc49287`
+
+Closed: 2026-06-14
+
+Closure evidence:
+
+- REST and MCP app-level errors expose structured code/message/field data.
+- REST validation covers create, update, comments, tags, parent, blocker, filters, nulls, wrong types, missing fields, whitespace, unsupported methods, and static-handler fallbacks.
+- Search and ordering are stable across title, Markdown, comments, tags, IDs, creator, assignee, status, and priority.
+- SQLite migration and local persistence behavior are covered by store tests.
+- No-op updates preserve `updated_at` across scalar, tag, parent, blocker, status, priority, and assignee mutations.
+- Completed P1 children:
+  - `issue_6d9a874a-4e85-4b7b-8fac-02075db1d08a` Normalize JSON error consistency.
+  - `issue_c61f6649-fd6c-415e-aad0-fc7b7d71f01f` Complete REST validation matrix.
+  - `issue_bcdeba68-9529-4c2d-a006-c11b85427e30` Guarantee deterministic search and ordering.
+  - `issue_6fdc9b0d-b03b-4bd0-a1e7-773f03e9c791` Exercise SQLite migration idempotence.
+  - `issue_46fc5e39-0f24-4b67-81f9-3301369e7ff7` Protect no-op timestamp guarantees.
+
+Lower-priority follow-up moved outside this P1 scope:
+
+- `issue_f5010ea9-0534-4465-a3b1-bd36575a034e` Harden tag color normalization.
+
+Verification evidence:
+
+- `go test ./internal/app ./internal/httpapi ./internal/store`
+- `go test ./...`
+- `scripts/smoke.sh` REST coverage referenced by completed child issues
