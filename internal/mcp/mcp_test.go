@@ -3,6 +3,7 @@ package mcp
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -114,6 +115,7 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	assertRequiredToolProp(t, toolList, "issue_assign", "assignee")
 	assertRequiredToolProp(t, toolList, "issue_set_parent", "parent_issue_id")
 	assertRequiredUsername(t, toolList)
+	assertToolSchemasUseScalarTypes(t, toolList)
 	assertToolPropDescriptionContains(t, toolList, "issue_search", "q", "comments", "tags", "creator", "priority")
 
 	resources := rpcRequest(t, server, "http://127.0.0.1:8080", "resources/list", map[string]any{})
@@ -756,6 +758,34 @@ func assertRequiredUsername(t *testing.T, tools []any) {
 	}
 }
 
+func assertToolSchemasUseScalarTypes(t *testing.T, tools []any) {
+	t.Helper()
+	for _, item := range tools {
+		tool := item.(map[string]any)
+		schema := tool["inputSchema"].(map[string]any)
+		assertSchemaTypesAreScalar(t, tool["name"].(string)+".inputSchema", schema)
+	}
+}
+
+func assertSchemaTypesAreScalar(t *testing.T, path string, value any) {
+	t.Helper()
+	switch typed := value.(type) {
+	case map[string]any:
+		if schemaType, ok := typed["type"]; ok {
+			if _, ok := schemaType.(string); !ok {
+				t.Fatalf("expected %s.type to be a scalar string, got %#v", path, schemaType)
+			}
+		}
+		for name, child := range typed {
+			assertSchemaTypesAreScalar(t, path+"."+name, child)
+		}
+	case []any:
+		for i, child := range typed {
+			assertSchemaTypesAreScalar(t, fmt.Sprintf("%s[%d]", path, i), child)
+		}
+	}
+}
+
 func assertNullableToolProp(t *testing.T, tools []any, toolName, propName string) {
 	t.Helper()
 	for _, item := range tools {
@@ -766,9 +796,17 @@ func assertNullableToolProp(t *testing.T, tools []any, toolName, propName string
 		schema := tool["inputSchema"].(map[string]any)
 		props := schema["properties"].(map[string]any)
 		prop := props[propName].(map[string]any)
-		types := prop["type"].([]any)
-		if len(types) != 2 || types[0] != "string" || types[1] != "null" {
-			t.Fatalf("expected %s.%s to accept string or null, got %#v", toolName, propName, prop["type"])
+		options := prop["anyOf"].([]any)
+		if len(options) != 2 {
+			t.Fatalf("expected %s.%s to accept string or null, got %#v", toolName, propName, prop["anyOf"])
+		}
+		seen := map[string]bool{}
+		for _, option := range options {
+			optionSchema := option.(map[string]any)
+			seen[optionSchema["type"].(string)] = true
+		}
+		if !seen["string"] || !seen["null"] {
+			t.Fatalf("expected %s.%s to accept string or null, got %#v", toolName, propName, prop["anyOf"])
 		}
 		return
 	}

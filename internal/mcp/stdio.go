@@ -10,46 +10,51 @@ import (
 	"strings"
 )
 
+type stdioMessage struct {
+	body   []byte
+	framed bool
+}
+
 // ServeStdio runs the MCP server over the standard MCP stdio framing.
 func (s *Server) ServeStdio(ctx context.Context, in io.Reader, out io.Writer) error {
 	reader := bufio.NewReader(in)
 	for {
-		body, err := readStdioMessage(reader)
+		msg, err := readStdioMessage(reader)
 		if err != nil {
 			if err == io.EOF {
 				return nil
 			}
 			return err
 		}
-		res, ok := s.processMessage(ctx, body)
+		res, ok := s.processMessage(ctx, msg.body)
 		if !ok {
 			continue
 		}
-		if err := writeStdioMessage(out, res); err != nil {
+		if err := writeStdioMessage(out, res, msg.framed); err != nil {
 			return err
 		}
 	}
 }
 
-func readStdioMessage(reader *bufio.Reader) ([]byte, error) {
+func readStdioMessage(reader *bufio.Reader) (stdioMessage, error) {
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			return nil, err
+			return stdioMessage{}, err
 		}
 		trimmed := strings.TrimRight(line, "\r\n")
 		if strings.TrimSpace(trimmed) == "" {
 			continue
 		}
 		if strings.HasPrefix(strings.TrimSpace(trimmed), "{") {
-			return []byte(strings.TrimSpace(trimmed)), nil
+			return stdioMessage{body: []byte(strings.TrimSpace(trimmed))}, nil
 		}
 
 		contentLength, ok := parseContentLength(trimmed)
 		for {
 			headerLine, err := reader.ReadString('\n')
 			if err != nil {
-				return nil, err
+				return stdioMessage{}, err
 			}
 			headerLine = strings.TrimRight(headerLine, "\r\n")
 			if headerLine == "" {
@@ -61,13 +66,13 @@ func readStdioMessage(reader *bufio.Reader) ([]byte, error) {
 			}
 		}
 		if !ok || contentLength < 0 {
-			return nil, fmt.Errorf("missing or invalid Content-Length header")
+			return stdioMessage{}, fmt.Errorf("missing or invalid Content-Length header")
 		}
 		body := make([]byte, contentLength)
 		if _, err := io.ReadFull(reader, body); err != nil {
-			return nil, err
+			return stdioMessage{}, err
 		}
-		return body, nil
+		return stdioMessage{body: body, framed: true}, nil
 	}
 }
 
@@ -83,9 +88,16 @@ func parseContentLength(line string) (int, bool) {
 	return n, true
 }
 
-func writeStdioMessage(out io.Writer, res response) error {
+func writeStdioMessage(out io.Writer, res response, framed bool) error {
 	body, err := json.Marshal(res)
 	if err != nil {
+		return err
+	}
+	if !framed {
+		if _, err := out.Write(body); err != nil {
+			return err
+		}
+		_, err = out.Write([]byte("\n"))
 		return err
 	}
 	if _, err := fmt.Fprintf(out, "Content-Length: %d\r\n\r\n", len(body)); err != nil {

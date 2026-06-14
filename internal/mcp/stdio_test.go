@@ -57,7 +57,7 @@ func TestMCPStdioTransportHandlesJSONLinesAndInvalidRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	responses := decodeTestFrames(t, output.Bytes())
+	responses := decodeTestLines(t, output.Bytes())
 	if len(responses) != 2 {
 		t.Fatalf("expected 2 responses, got %d", len(responses))
 	}
@@ -88,15 +88,32 @@ func decodeTestFrames(t *testing.T, data []byte) []map[string]any {
 			}
 			t.Fatal(err)
 		}
-		body, err := readStdioMessage(reader)
+		msg, err := readStdioMessage(reader)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var response map[string]any
-		if err := json.Unmarshal(body, &response); err != nil {
+		if err := json.Unmarshal(msg.body, &response); err != nil {
 			t.Fatal(err)
 		}
 		responses = append(responses, response)
+	}
+	return responses
+}
+
+func decodeTestLines(t *testing.T, data []byte) []map[string]any {
+	t.Helper()
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	var responses []map[string]any
+	for scanner.Scan() {
+		var response map[string]any
+		if err := json.Unmarshal(scanner.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		responses = append(responses, response)
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatal(err)
 	}
 	return responses
 }

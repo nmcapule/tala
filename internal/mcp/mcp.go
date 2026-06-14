@@ -886,7 +886,10 @@ func strProp(name, description string) map[string]any {
 }
 
 func nullableStrProp(name, description string) map[string]any {
-	return map[string]any{name: map[string]any{"type": []string{"string", "null"}, "description": description}}
+	return map[string]any{name: map[string]any{
+		"anyOf":       []map[string]string{{"type": "string"}, {"type": "null"}},
+		"description": description,
+	}}
 }
 
 func arrayProp(name, description string) map[string]any {
