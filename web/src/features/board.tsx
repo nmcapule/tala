@@ -7,15 +7,17 @@ import { useDelayedBusy } from "../hooks";
 import { emptyFilters, formatDateTime, isResolved, shortID, statusLabel, storyPointLabel } from "../utils";
 import { Badge, EmptyState, LoadingStatus, RequestError, Stat, TagRow } from "../components/common";
 
-export function Board({ issues, totalIssues, filters, hasFilters, loading, showLoading, username, onOpen, onRefresh, onResetFilters, onApplyFilters }: { issues: Issue[]; totalIssues: number; filters: IssueFilters; hasFilters: boolean; loading: boolean; showLoading: boolean; username: string; onOpen: (id: string) => void; onRefresh: () => Promise<void>; onResetFilters: () => void; onApplyFilters: (filters: IssueFilters) => void }) {
+const boardStatuses: Status[] = ["in_progress", "new", "completed", "canceled"];
+
+export function Board({ issues, totalIssues, filters, hasFilters, loading, showLoading, username, compactMode, onOpen, onRefresh, onResetFilters, onApplyFilters }: { issues: Issue[]; totalIssues: number; filters: IssueFilters; hasFilters: boolean; loading: boolean; showLoading: boolean; username: string; compactMode: boolean; onOpen: (id: string) => void; onRefresh: () => Promise<void>; onResetFilters: () => void; onApplyFilters: (filters: IssueFilters) => void }) {
   const [draggingID, setDraggingID] = useState("");
   const [actionError, setActionError] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<Status, boolean>>({
     new: false,
     in_progress: false,
-    completed: false,
-    canceled: false,
+    completed: true,
+    canceled: true,
   });
   const showActionLoading = useDelayedBusy(actionBusy);
   async function moveIssue(issueID: string, status: Status) {
@@ -60,7 +62,7 @@ export function Board({ issues, totalIssues, filters, hasFilters, loading, showL
         <Stat label="Blocked" value={issues.filter((i) => i.blocked).length} tone="danger" active={filters.state === "blocked"} onClick={() => applyStateFilter("blocked")} />
         <Stat label="Done" value={issues.filter((i) => i.status === "completed").length} tone="good" active={filters.state === "done"} onClick={() => applyStateFilter("done")} />
       </div>
-      {statuses.map((status) => {
+      {boardStatuses.map((status) => {
         const statusIssues = issues.filter((issue) => issue.status === status);
         const isCollapsed = collapsed[status];
         return (
@@ -84,7 +86,7 @@ export function Board({ issues, totalIssues, filters, hasFilters, loading, showL
             {statusIssues.length === 0 ? (
               <EmptyState title={`No ${statusLabel(status).toLowerCase()} issues`} description="Drop issues here or change a card status to fill this lane." compact />
             ) : statusIssues.map((issue) => (
-              <IssueCard key={issue.id} issue={issue} dragging={draggingID === issue.id} onDragStart={(event) => {
+              <IssueCard key={issue.id} issue={issue} compactMode={compactMode} dragging={draggingID === issue.id} onDragStart={(event) => {
                 setDraggingID(issue.id);
                 event.dataTransfer.effectAllowed = "move";
                 event.dataTransfer.setData("text/plain", issue.id);
@@ -100,24 +102,27 @@ export function Board({ issues, totalIssues, filters, hasFilters, loading, showL
   );
 }
 
-function IssueCard({ issue, dragging, statusDisabled, onDragStart, onDragEnd, onOpen, onStatus }: { issue: Issue; dragging: boolean; statusDisabled: boolean; onDragStart: React.DragEventHandler<HTMLElement>; onDragEnd: React.DragEventHandler<HTMLElement>; onOpen: () => void; onStatus: (status: Status) => Promise<void> }) {
+function IssueCard({ issue, compactMode, dragging, statusDisabled, onDragStart, onDragEnd, onOpen, onStatus }: { issue: Issue; compactMode: boolean; dragging: boolean; statusDisabled: boolean; onDragStart: React.DragEventHandler<HTMLElement>; onDragEnd: React.DragEventHandler<HTMLElement>; onOpen: () => void; onStatus: (status: Status) => Promise<void> }) {
   return (
-    <article className={`issue-card ${issue.blocked ? "blocked" : ""} ${dragging ? "dragging" : ""}`} draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    <article className={`issue-card ${issue.status === "in_progress" ? "in-progress" : ""} ${issue.blocked ? "blocked" : ""} ${compactMode ? "compact-card" : ""} ${dragging ? "dragging" : ""}`} draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <button className="card-main" onClick={onOpen}>
-        <div className="card-title-row"><h3>{issue.title}</h3><span>{shortID(issue.id)}</span></div>
+        <div className="card-title-row">
+          <h3>{issue.status === "in_progress" && <span className="work-indicator" aria-label="In progress" title="In progress" />} {issue.title}</h3>
+          <span>{shortID(issue.id)}</span>
+        </div>
         <div className="meta-row">
           <Badge tone={issue.priority === "P0" || issue.priority === "P1" ? "danger" : "neutral"}>{issue.priority}</Badge>
           <Badge>{storyPointLabel(issue)}</Badge>
           <Badge tone={isResolved(issue) ? "good" : issue.blocked ? "danger" : "neutral"}>{statusLabel(issue.status)}</Badge>
-          <Badge>{issue.assignee || "Unassigned"}</Badge>
+          {!compactMode && <Badge>{issue.assignee || "Unassigned"}</Badge>}
           {issue.blocked && <Badge tone="danger">Blocked</Badge>}
         </div>
-        <TagRow tags={issue.tags || []} limit={3} />
+        {!compactMode && <TagRow tags={issue.tags || []} limit={3} />}
         <div className="card-footer">
-          <span title={`Created by ${issue.created_by}`}><User size={14} />{issue.created_by}</span>
+          {!compactMode && <span title={`Created by ${issue.created_by}`}><User size={14} />{issue.created_by}</span>}
           <span title={`Updated ${formatDateTime(issue.updated_at)}`}><Clock size={14} />{formatDateTime(issue.updated_at)}</span>
-          <span aria-label={`${issue.child_count} child issues`}><GitBranch size={14} />{issue.child_count}</span>
-          <span aria-label={`${issue.comment_count} comments`}><MessageSquare size={14} />{issue.comment_count}</span>
+          {(!compactMode || issue.child_count > 0) && <span aria-label={`${issue.child_count} child issues`}><GitBranch size={14} />{issue.child_count}</span>}
+          {(!compactMode || issue.comment_count > 0) && <span aria-label={`${issue.comment_count} comments`}><MessageSquare size={14} />{issue.comment_count}</span>}
         </div>
       </button>
       <select value={issue.status} disabled={statusDisabled} onChange={(event) => onStatus(event.target.value as Status)} aria-label="Status">

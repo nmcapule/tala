@@ -47,6 +47,34 @@ You can override the seeded-db address and path:
 make own-db OWN_DB_ADDR=127.0.0.1:8090 OWN_DB=/tmp/tala.db
 ```
 
+### Project Roadmap Database Workflow
+
+The repository's `.tala/tala.db` is the durable Tala project ledger. It is the source of truth for roadmap issues, known bugs, agent handoffs, estimates, and completion evidence.
+
+Use `.tala/tala.db` only for durable project work:
+
+- Run `make own-db` when you need the browser UI against the project roadmap.
+- Use the repo-local Tala MCP tools for agent planning and progress updates.
+- Commit `.tala/tala.db` changes only when they represent real roadmap, bug, release, or handoff updates.
+- Before risky manual edits or release-candidate work, make a local backup with `cp .tala/tala.db .tala/tala.db.bak-$(date +%Y%m%d%H%M%S)`.
+
+Do not use `.tala/tala.db` for throwaway verification data:
+
+- Run smoke and browser-smoke checks against a disposable database such as `/tmp/tala-v1-candidate.db`.
+- Use `DB`, `OWN_DB`, `TALA_DB`, or command-line `-db` overrides for experiments, demos, and reproductions.
+- If a test accidentally writes to `.tala/tala.db`, remove only run-specific records after confirming their title, creator, tag, or timestamp, then re-run a search for known smoke prefixes.
+
+To refresh or recreate the seeded roadmap database, start from a known-good checkout or backup, run `make own-db`, apply durable issue changes through the UI or Tala MCP tools, verify there are no temporary smoke records, and commit the updated `.tala/tala.db` together with any matching documentation changes. Do not regenerate the roadmap ledger from smoke scripts; smoke scripts are verification fixtures, not seed sources.
+
+For repeatable demo or manual-QA data, create a disposable fixture database instead of editing the project ledger:
+
+```sh
+make fixture-db
+go run ./cmd/tala -addr 127.0.0.1:8081 -db /tmp/tala-fixture.db
+```
+
+`make fixture-db` recreates `/tmp/tala-fixture.db`, starts a temporary local Tala server, seeds representative tags, parent/child issues, blockers, story points, and comments through the public REST API, then stops the server. Override `FIXTURE_DB` and `FIXTURE_ADDR` when needed. The fixture script refuses `.tala/tala.db` unless `TALA_ALLOW_PROJECT_DB_FIXTURE=1` is set intentionally.
+
 Run the Vite frontend separately during frontend work:
 
 ```sh

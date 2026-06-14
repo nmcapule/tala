@@ -559,6 +559,37 @@ func TestIssueOrderingUsesStableTieBreakers(t *testing.T) {
 	}
 }
 
+func TestIssueDefaultOrderingUsesLastModifiedDescending(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+
+	oldest, err := st.CreateIssue(ctx, IssueInput{Title: "Oldest", Status: domain.StatusNew, Priority: domain.PriorityP0, CreatedBy: "alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	newest, err := st.CreateIssue(ctx, IssueInput{Title: "Newest", Status: domain.StatusNew, Priority: domain.PriorityP4, CreatedBy: "alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	middle, err := st.CreateIssue(ctx, IssueInput{Title: "Middle", Status: domain.StatusNew, Priority: domain.PriorityP2, CreatedBy: "alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.ExecContext(ctx, `UPDATE issues SET updated_at = CASE id
+		WHEN ? THEN '2026-06-12T00:00:00Z'
+		WHEN ? THEN '2026-06-14T00:00:00Z'
+		WHEN ? THEN '2026-06-13T00:00:00Z'
+		ELSE updated_at END`, oldest.ID, newest.ID, middle.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := st.ListIssues(ctx, domain.IssueFilters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIssueIDs(t, results, []string{newest.ID, middle.ID, oldest.ID})
+}
+
 func assertCommentBodies(t *testing.T, comments []domain.Comment, want []string) {
 	t.Helper()
 	if len(comments) != len(want) {

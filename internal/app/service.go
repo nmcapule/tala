@@ -49,7 +49,7 @@ type CommentRequest struct {
 	BodyMarkdown string `json:"body_markdown"`
 }
 
-var tagHexColorPattern = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
+var tagHexColorPattern = regexp.MustCompile(`^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
 
 var tagColorTokens = map[string]bool{
 	"background":                true,
@@ -648,8 +648,17 @@ func normalizeTagColor(color *string) (*string, *domain.AppError) {
 	if clean == nil {
 		return nil, nil
 	}
-	if tagHexColorPattern.MatchString(*clean) || tagColorTokens[*clean] {
-		return clean, nil
+	lower := strings.ToLower(*clean)
+	if tagColorTokens[lower] {
+		return &lower, nil
+	}
+	if matches := tagHexColorPattern.FindStringSubmatch(*clean); matches != nil {
+		hex := strings.ToLower(matches[1])
+		if len(hex) == 3 {
+			hex = string([]byte{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]})
+		}
+		normalized := "#" + hex
+		return &normalized, nil
 	}
 	return nil, domain.NewError(domain.CodeValidationError, "Tag color must be a hex color or known UI color token.", "color")
 }

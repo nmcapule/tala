@@ -35,14 +35,14 @@ Issue descriptions and comments are always Markdown source. The UI renders Markd
 - Backend: Go.
 - HTTP router: `chi`.
 - Database: SQLite.
-- Database access: `database/sql` with `sqlc` generated query methods.
+- Database access: `database/sql` with hand-written SQL and small transaction wrappers.
 - Frontend: React + Vite.
-- UI styling: Tailwind CSS + shadcn/ui.
+- UI styling: local CSS modules/patterns in `web/src/styles.css`, shared React components, and lucide icons, aligned with the Stitch design system.
 - REST API: endpoint tables documented in this design.
 - MCP: served by the same Go process as the web frontend and REST API.
-- MCP transport: Streamable HTTP at `/mcp`, using JSON-RPC.
+- MCP transport: Streamable HTTP-compatible JSON-RPC at `/mcp`.
 
-The MCP transport should follow the current Model Context Protocol Streamable HTTP guidance: use a single endpoint that accepts POST and GET where supported, validate `Origin`, bind local deployments to `127.0.0.1` by default, and treat stronger authentication as future work.
+The v1 MCP HTTP endpoint intentionally supports POST requests only. It uses the Streamable HTTP media types and protocol version header, rejects non-local `Origin` values, binds local deployments to `127.0.0.1` by default, and treats stronger authentication as future work. GET/SSE transport support is out of scope for v1 unless a future client integration requires it.
 
 References:
 
@@ -190,7 +190,7 @@ Use one Go binary with these internal boundaries:
 
 - HTTP layer: request parsing, response formatting, username extraction.
 - Domain services: issue mutation, relationship validation, filtering, Markdown field handling.
-- Store layer: `sqlc` generated queries plus small transaction wrappers.
+- Store layer: hand-written `database/sql` queries plus small transaction wrappers.
 - REST handlers: thin wrappers around domain services.
 - MCP handlers: thin wrappers around the same domain services.
 - Static frontend serving: Vite build output served by the Go server in production.
@@ -199,7 +199,7 @@ The username should be supplied through:
 
 - Web frontend: browser local storage after the username login screen.
 - REST API: `X-Tala-Username` request header.
-- MCP: an optional `username` argument on mutating tools, defaulting to the MCP session/user label if available.
+- MCP: an explicit `username` argument on every mutating tool.
 
 If no username is supplied for a mutating operation, return a validation error.
 
@@ -332,7 +332,27 @@ Common error codes:
 
 ## MCP Interface
 
-The MCP server is exposed at `/mcp` using Streamable HTTP. It advertises tools and resources.
+The MCP server is exposed at `/mcp` using Streamable HTTP-compatible JSON-RPC over POST. It advertises tools and resources, returns `405 Method Not Allowed` for GET and other unsupported HTTP methods, and includes `Allow: POST` on those responses.
+
+MCP mutating tools require an explicit `username` argument. Tala v1 has no MCP session identity, so tools do not infer or default usernames from transport metadata.
+
+### Future MCP Username Sessions
+
+Future MCP integrations may replace explicit mutating-tool `username` arguments
+with a server-established session user label. That change should only happen
+after the transport has a documented identity source that is visible to logs,
+tool audit trails, and error messages.
+
+The migration path should be:
+
+- Continue accepting explicit `username` arguments during a compatibility
+  window, with the explicit value taking precedence over the session label.
+- Return the same `missing_username` validation error when neither an explicit
+  username nor a session user label is present.
+- Record the resolved username in `created_by`, comment `author`, uploads, and
+  other mutation audit fields exactly as REST and the web frontend do today.
+- Reject conflicting usernames once authentication or stronger authorization is
+  introduced, rather than silently trusting client-supplied identity.
 
 ### Tools
 
@@ -383,6 +403,11 @@ Example `issue_comment` input:
 Resources should be concise and agent-readable. They should include Markdown source for descriptions and comments, not rendered HTML.
 
 ## Web Frontend
+
+The v1 frontend uses React + Vite with a local CSS file, shared components in
+`web/src/components`, and lucide icons. It does not require Tailwind CSS or
+shadcn/ui. Future frontend work should extend those local components and keep
+visual decisions aligned with `.stitch/DESIGN.md`.
 
 ### Login
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Blocks, ClipboardList, Filter, GitBranch, Link2, Plus, Settings, User } from "lucide-react";
+import { ArrowLeft, Blocks, ClipboardList, Filter, GitBranch, Link2, Minimize2, Plus, Settings, User } from "lucide-react";
 import type { Issue, IssueFilters, Tag, View } from "./types";
 import { filterKeys } from "./constants";
 import { useDelayedBusy } from "./hooks";
@@ -24,6 +24,7 @@ export function App() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [filters, setFilters] = useState<IssueFilters>(() => filtersFromLocation());
+  const [compactMode, setCompactMode] = useState(() => localStorage.getItem("tala.compactMode") === "true");
   const [tags, setTags] = useState<Tag[]>([]);
   const [error, setError] = useState("");
   const [permalinkCopied, setPermalinkCopied] = useState(false);
@@ -69,14 +70,7 @@ export function App() {
       const res = await fetch("/api/issues");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message || "Unable to load issues.");
-      const summaries = (data || []) as Issue[];
-      const details = await Promise.all(summaries.map(async (issue) => {
-        const detailRes = await fetch(`/api/issues/${issue.id}`);
-        const detail = await detailRes.json();
-        if (!detailRes.ok) throw new Error(detail.error?.message || "Unable to load issue context.");
-        return detail as Issue;
-      }));
-      setAllIssues(details);
+      setAllIssues(data || []);
     });
   }
 
@@ -283,6 +277,14 @@ export function App() {
     }
   }
 
+  function toggleCompactMode() {
+    setCompactMode((current) => {
+      const next = !current;
+      localStorage.setItem("tala.compactMode", next ? "true" : "false");
+      return next;
+    });
+  }
+
   const selected = selectedID
     ? selectedIssue?.id === selectedID
       ? selectedIssue
@@ -310,6 +312,7 @@ export function App() {
         </div>
         <div className="top-actions">
           {selected && <button className="icon-button" onClick={() => copyPermalink().catch((err) => setError(err instanceof Error ? err.message : "Unable to copy permalink."))} aria-label={permalinkCopied ? "Copied permalink" : "Copy permalink"} title={permalinkCopied ? "Copied" : "Copy permalink"}><Link2 size={20} /></button>}
+          {!selected && <button className={`icon-button ${compactMode ? "active" : ""}`} onClick={toggleCompactMode} aria-label="Compact mode" aria-pressed={compactMode} title={compactMode ? "Compact mode on" : "Compact mode"}><Minimize2 size={20} /></button>}
           {!selected && <button className="icon-button" disabled={Boolean(sheetLoading)} onClick={openFilterSheet} aria-label="Filters"><Filter size={20} /></button>}
           {!selected && <button className="icon-button primary" disabled={Boolean(sheetLoading)} onClick={openCreateSheet} aria-label="Create issue"><Plus size={20} /></button>}
         </div>
@@ -320,15 +323,15 @@ export function App() {
 
       <main className="content">
         {selected ? (
-          <IssueDetail issue={selected} detailLoading={showSelectedLoading} username={username} issues={allIssues} onOpenIssue={openIssue} onApplyFilters={applyFilters} onRefresh={refreshAll} onTagsChanged={refreshTags} onClose={closeIssue} />
+          <IssueDetail issue={selected} detailLoading={showSelectedLoading} username={username} issues={allIssues} compactMode={compactMode} onOpenIssue={openIssue} onApplyFilters={applyFilters} onRefresh={refreshAll} onTagsChanged={refreshTags} onClose={closeIssue} />
         ) : selectedID ? (
           selectedLoading ? (showSelectedLoading ? <LoadingStatus message="Loading issue detail..." /> : null) : <EmptyState title="Issue not found" description="The selected issue could not be loaded." />
         ) : view === "board" ? (
-          <Board issues={issues} totalIssues={allIssues.length} filters={filters} hasFilters={hasActiveFilters(filters)} loading={boardLoading > 0 || contextLoading > 0} showLoading={showBoardLoading || showContextLoading} username={username} onOpen={openIssue} onRefresh={refresh} onResetFilters={resetFilters} onApplyFilters={applyFilters} />
+          <Board issues={issues} totalIssues={allIssues.length} filters={filters} hasFilters={hasActiveFilters(filters)} loading={boardLoading > 0 || contextLoading > 0} showLoading={showBoardLoading || showContextLoading} username={username} compactMode={compactMode} onOpen={openIssue} onRefresh={refresh} onResetFilters={resetFilters} onApplyFilters={applyFilters} />
         ) : view === "hierarchy" ? (
-          contextLoading > 0 ? (showContextLoading ? <LoadingStatus message="Loading hierarchy..." /> : null) : <Hierarchy issues={allIssues} onOpen={openIssue} />
+          contextLoading > 0 ? (showContextLoading ? <LoadingStatus message="Loading hierarchy..." /> : null) : <Hierarchy issues={allIssues} compactMode={compactMode} onOpen={openIssue} />
         ) : view === "blockers" ? (
-          contextLoading > 0 ? (showContextLoading ? <LoadingStatus message="Loading blockers..." /> : null) : <Blockers issues={allIssues} onOpen={openIssue} />
+          contextLoading > 0 ? (showContextLoading ? <LoadingStatus message="Loading blockers..." /> : null) : <Blockers issues={allIssues} compactMode={compactMode} onOpen={openIssue} />
         ) : (
           <>
             {showTagsLoading && <LoadingStatus message="Loading tag context..." />}

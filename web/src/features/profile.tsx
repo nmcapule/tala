@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, User } from "lucide-react";
+import { AlertCircle, Database, User } from "lucide-react";
 import type { Tag } from "../types";
 import { api } from "../api";
 import { tagColorChoices, tagColorTokens } from "../constants";
@@ -54,6 +54,11 @@ export function Profile({ username, onLogout, onTagsChanged }: { username: strin
 
   return <div className="profile-stack">
     <section className="panel profile"><User size={28} /><h2>{username}</h2><p>Used for REST mutations and comments on this local Tala instance.</p><button className="button" onClick={onLogout}>Change username</button></section>
+    <section className="panel local-data">
+      <div className="section-title"><h3>Local data</h3><Database size={18} /></div>
+      <p>Tala stores issues in a local SQLite database. Back up, export, or move a workspace by copying the configured database file, such as <code>.tala/tala.db</code>, while no writes are in progress.</p>
+      <p>Use a separate database path for demos, smoke tests, and experiments so project roadmap data stays clean.</p>
+    </section>
     <section className="panel tag-admin">
       <div className="section-title"><h3>Tags</h3><span>{tags.length}</span></div>
       {error && <RequestError message={error} onRetry={reloadTags} onDismiss={() => setError("")} compact />}

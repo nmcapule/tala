@@ -369,7 +369,7 @@ func (s *Store) ListIssues(ctx context.Context, filters domain.IssueFilters) ([]
 
 func issueOrderBy(filters domain.IssueFilters) string {
 	if filters.Sort == "" {
-		return ` ORDER BY CASE i.priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END, i.updated_at DESC, i.id ASC`
+		return ` ORDER BY i.updated_at DESC, i.id ASC`
 	}
 	direction := "ASC"
 	if filters.Order == "desc" {

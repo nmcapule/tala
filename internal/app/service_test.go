@@ -707,6 +707,24 @@ func TestParentClearingAndTagColorUpdates(t *testing.T) {
 	if tag.Color == nil || *tag.Color != "#ffd7bd" {
 		t.Fatalf("expected tag color to be trimmed, got %#v", tag.Color)
 	}
+	shortHexColor := " F0A "
+	shortHexColorUpdate := &shortHexColor
+	tag, err = svc.UpdateTag(ctx, tag.ID, nil, &shortHexColorUpdate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tag.Color == nil || *tag.Color != "#ff00aa" {
+		t.Fatalf("expected short hex color to be normalized, got %#v", tag.Color)
+	}
+	tokenColor := " Secondary-Container "
+	tokenColorUpdate := &tokenColor
+	tag, err = svc.UpdateTag(ctx, tag.ID, nil, &tokenColorUpdate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tag.Color == nil || *tag.Color != "secondary-container" {
+		t.Fatalf("expected token color to be normalized, got %#v", tag.Color)
+	}
 	blankColor := "   "
 	blankColorUpdate := &blankColor
 	tag, err = svc.UpdateTag(ctx, tag.ID, nil, &blankColorUpdate)

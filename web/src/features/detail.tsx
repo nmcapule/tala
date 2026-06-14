@@ -7,7 +7,7 @@ import { useDelayedBusy } from "../hooks";
 import { emptyFilters, insertAtCursor, optionalText, shortID, splitTags, statusLabel, storyPointLabel } from "../utils";
 import { ActionStatus, Badge, CommentView, EmptyState, ImageUploadControl, LoadingStatus, Markdown, RequestError, Segment, TagRow } from "../components/common";
 
-export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssue, onApplyFilters, onRefresh, onTagsChanged, onClose }: { issue: Issue; detailLoading: boolean; username: string; issues: Issue[]; onOpenIssue: (id: string) => void; onApplyFilters: (filters: IssueFilters) => void; onRefresh: () => Promise<void>; onTagsChanged: () => Promise<void>; onClose: () => void }) {
+export function IssueDetail({ issue, detailLoading, username, issues, compactMode, onOpenIssue, onApplyFilters, onRefresh, onTagsChanged, onClose }: { issue: Issue; detailLoading: boolean; username: string; issues: Issue[]; compactMode: boolean; onOpenIssue: (id: string) => void; onApplyFilters: (filters: IssueFilters) => void; onRefresh: () => Promise<void>; onTagsChanged: () => Promise<void>; onClose: () => void }) {
   const [title, setTitle] = useState(issue.title);
   const [tagDraft, setTagDraft] = useState((issue.tags || []).map((tag) => tag.name).join(", "));
   const [assigneeDraft, setAssigneeDraft] = useState(issue.assignee || "");
@@ -140,12 +140,14 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
   const existingBlockedByIDs = new Set((issue.blocked_by || []).map((blocked) => blocked.id));
   const relationshipCandidates = issues.filter((candidate) => candidate.id !== issue.id);
   const validParentCandidates = relationshipCandidates.filter((candidate) => !isDescendantOf(candidate.id, issue.id, issues));
+  const hiddenParentCandidates = relationshipCandidates.length - validParentCandidates.length;
   const parentCandidates = includeSelectedIssue(
     validParentCandidates.filter((candidate) => matchesIssueSearch(candidate, parentQuery)),
     parentID,
     validParentCandidates,
   );
   const validBlockerCandidates = relationshipCandidates.filter((candidate) => !existingBlockerIDs.has(candidate.id) && !existingBlockedByIDs.has(candidate.id));
+  const hiddenBlockerCandidates = relationshipCandidates.length - validBlockerCandidates.length;
   const blockerCandidates = includeSelectedIssue(
     validBlockerCandidates.filter((candidate) => matchesIssueSearch(candidate, blockerQuery)),
     blockerID,
@@ -166,12 +168,13 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
 
   function routeRelationshipError(err: unknown, message: string) {
     if (!(err instanceof ApiError)) return false;
+    const relationshipMessage = relationshipErrorMessage(err, message);
     if (err.field === "parent_issue_id") {
-      setParentError(message);
+      setParentError(relationshipMessage);
       return true;
     }
     if (err.field === "blocker_issue_id") {
-      setBlockerError(message);
+      setBlockerError(relationshipMessage);
       return true;
     }
     return false;
@@ -313,6 +316,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
               totalCount={validParentCandidates.length}
               query={parentQuery}
               emptyLabel="No parent candidates match this search."
+              excludedLabel={hiddenParentCandidates > 0 ? `${hiddenParentCandidates} ${pluralize(hiddenParentCandidates, "descendant")} hidden to prevent hierarchy cycles.` : undefined}
               preservedLabel={selectedParentPreserved ? "Selected parent stays available while filtering." : undefined}
             />
           </div>
@@ -333,13 +337,13 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
           {parentError && <div className="field-error inline-error"><AlertCircle size={15} />{parentError}</div>}
         </div>
 
-        <RelationshipList title="Parent" issues={currentParent ? [currentParent] : []} onOpen={onOpenIssue} />
-        <RelationshipList title="Children" issues={issue.children || []} onOpen={onOpenIssue} />
-        <BlockerRelationshipList issues={issue.blockers || []} onRemove={(blocker) => runAction(async () => {
+        <RelationshipList title="Parent" issues={currentParent ? [currentParent] : []} compactMode={compactMode} onOpen={onOpenIssue} />
+        <RelationshipList title="Children" issues={issue.children || []} compactMode={compactMode} onOpen={onOpenIssue} />
+        <BlockerRelationshipList issues={issue.blockers || []} compactMode={compactMode} onRemove={(blocker) => runAction(async () => {
           await api(`/api/issues/${issue.id}/blockers/${blocker.id}`, { method: "DELETE", username });
           await onRefresh();
         }, setBlockerError, { pending: "Removing blocker...", success: "Blocker removed." }, routeRelationshipError)} onOpen={onOpenIssue} />
-        <BlockingRelationshipList active={activeBlockedBy} resolved={resolvedBlockedBy} currentIssueResolved={isResolved(issue)} onOpen={onOpenIssue} />
+        <BlockingRelationshipList active={activeBlockedBy} resolved={resolvedBlockedBy} currentIssueResolved={isResolved(issue)} compactMode={compactMode} onOpen={onOpenIssue} />
 
         <div className="edit-field">
           <label>Add blocker</label>
@@ -353,6 +357,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
               totalCount={validBlockerCandidates.length}
               query={blockerQuery}
               emptyLabel="No blocker candidates match this search."
+              excludedLabel={hiddenBlockerCandidates > 0 ? `${hiddenBlockerCandidates} ${pluralize(hiddenBlockerCandidates, "existing or dependent link")} hidden to prevent duplicate or circular blockers.` : undefined}
             />
           </div>
           <select ref={blockerSelectRef} value={blockerID} onChange={(e) => {
@@ -393,6 +398,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
           ) : comments.map((item) => <CommentView key={item.id} comment={item} />)}
         </div>
         <div className="section-title compact-title"><h3>Add comment</h3><Segment value={commentTab} onChange={setCommentTab} /></div>
+        <p className="comment-note">Comments are append-only. Add a follow-up comment to correct or supersede an earlier note.</p>
         {commentTab === "source" ? (
           <textarea ref={commentRef} className="editor-surface" value={comment} onChange={(e) => {
             setComment(e.target.value);
@@ -426,7 +432,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
   );
 }
 
-function PickerFeedback({ visibleCount, totalCount, query, emptyLabel, preservedLabel }: { visibleCount: number; totalCount: number; query: string; emptyLabel: string; preservedLabel?: string }) {
+function PickerFeedback({ visibleCount, totalCount, query, emptyLabel, excludedLabel, preservedLabel }: { visibleCount: number; totalCount: number; query: string; emptyLabel: string; excludedLabel?: string; preservedLabel?: string }) {
   const hasQuery = Boolean(query.trim());
   const label = hasQuery
     ? visibleCount === 0
@@ -435,20 +441,21 @@ function PickerFeedback({ visibleCount, totalCount, query, emptyLabel, preserved
     : `${totalCount} candidates available.`;
   return <div className={`picker-feedback ${visibleCount === 0 ? "empty" : ""}`}>
     <span>{label}</span>
+    {excludedLabel && <span>{excludedLabel}</span>}
     {preservedLabel && <span>{preservedLabel}</span>}
   </div>;
 }
 
-function RelationshipList({ title, issues, onRemove, onOpen }: { title: string; issues: Issue[]; onRemove?: (issue: Issue) => void; onOpen?: (id: string) => void }) {
+function RelationshipList({ title, issues, compactMode, onRemove, onOpen }: { title: string; issues: Issue[]; compactMode: boolean; onRemove?: (issue: Issue) => void; onOpen?: (id: string) => void }) {
   return <div className="relationship-list">
     <h4>{title}</h4>
     {issues.length === 0 ? (
       <EmptyState title={`No ${title.toLowerCase()}`} description="No linked issues in this group." compact />
-    ) : issues.map((issue) => <RelationshipItem key={issue.id} issue={issue} onRemove={onRemove} onOpen={onOpen} />)}
+    ) : issues.map((issue) => <RelationshipItem key={issue.id} issue={issue} compactMode={compactMode} onRemove={onRemove} onOpen={onOpen} />)}
   </div>;
 }
 
-function BlockerRelationshipList({ issues, onRemove, onOpen }: { issues: Issue[]; onRemove: (issue: Issue) => void; onOpen?: (id: string) => void }) {
+function BlockerRelationshipList({ issues, compactMode, onRemove, onOpen }: { issues: Issue[]; compactMode: boolean; onRemove: (issue: Issue) => void; onOpen?: (id: string) => void }) {
   const unresolved = issues.filter((issue) => !isResolved(issue));
   const resolved = issues.filter(isResolved);
   return <div className="relationship-list">
@@ -456,36 +463,36 @@ function BlockerRelationshipList({ issues, onRemove, onOpen }: { issues: Issue[]
     {issues.length === 0 && <EmptyState title="No blockers" description="This issue has no dependency blockers." compact />}
     {unresolved.length > 0 && <div className="relationship-group">
       <span>Unresolved blockers</span>
-      {unresolved.map((issue) => <RelationshipItem key={issue.id} issue={issue} onRemove={onRemove} onOpen={onOpen} />)}
+      {unresolved.map((issue) => <RelationshipItem key={issue.id} issue={issue} compactMode={compactMode} onRemove={onRemove} onOpen={onOpen} />)}
     </div>}
     {resolved.length > 0 && <div className="relationship-group">
       <span>Completed or canceled blockers</span>
-      {resolved.map((issue) => <RelationshipItem key={issue.id} issue={issue} onRemove={onRemove} onOpen={onOpen} />)}
+      {resolved.map((issue) => <RelationshipItem key={issue.id} issue={issue} compactMode={compactMode} onRemove={onRemove} onOpen={onOpen} />)}
     </div>}
   </div>;
 }
 
-function BlockingRelationshipList({ active, resolved, currentIssueResolved, onOpen }: { active: Issue[]; resolved: Issue[]; currentIssueResolved: boolean; onOpen?: (id: string) => void }) {
+function BlockingRelationshipList({ active, resolved, currentIssueResolved, compactMode, onOpen }: { active: Issue[]; resolved: Issue[]; currentIssueResolved: boolean; compactMode: boolean; onOpen?: (id: string) => void }) {
   return <div className="relationship-list">
     <h4>Blocking</h4>
     {active.length === 0 && resolved.length === 0 && <EmptyState title="No blocked dependents" description="No issues depend on this one." compact />}
     {active.length > 0 && <div className="relationship-group">
       <span>Actively blocking</span>
-      {active.map((issue) => <RelationshipItem key={issue.id} issue={issue} onOpen={onOpen} />)}
+      {active.map((issue) => <RelationshipItem key={issue.id} issue={issue} compactMode={compactMode} onOpen={onOpen} />)}
     </div>}
     {resolved.length > 0 && <div className="relationship-group">
       <span>{currentIssueResolved ? "Resolved because this issue is completed or canceled" : "Completed or canceled dependents"}</span>
-      {resolved.map((issue) => <RelationshipItem key={issue.id} issue={issue} onOpen={onOpen} />)}
+      {resolved.map((issue) => <RelationshipItem key={issue.id} issue={issue} compactMode={compactMode} onOpen={onOpen} />)}
     </div>}
   </div>;
 }
 
-function RelationshipItem({ issue, onRemove, onOpen }: { issue: Issue; onRemove?: (issue: Issue) => void; onOpen?: (id: string) => void }) {
-  return <div className="relationship-item">
+function RelationshipItem({ issue, compactMode, onRemove, onOpen }: { issue: Issue; compactMode: boolean; onRemove?: (issue: Issue) => void; onOpen?: (id: string) => void }) {
+  return <div className={`relationship-item ${compactMode ? "compact-entry" : ""}`}>
     <button className="relationship-link" onClick={() => onOpen?.(issue.id)}>{issue.title}</button>
     <Badge tone={isResolved(issue) ? "good" : issue.blocked ? "danger" : "neutral"}>{statusLabel(issue.status)}</Badge>
     <Badge tone={issue.priority === "P0" || issue.priority === "P1" ? "danger" : "neutral"}>{issue.priority}</Badge>
-    <Badge>{storyPointLabel(issue)}</Badge>
+    {!compactMode && <Badge>{storyPointLabel(issue)}</Badge>}
     {onRemove && <button className="icon-button small" onClick={() => onRemove(issue)} aria-label={`Remove ${issue.title}`}><X size={15} /></button>}
   </div>;
 }
@@ -544,4 +551,18 @@ function matchesIssueSearch(issue: Issue, query: string) {
     ...(issue.blocked_by || []).map((blocked) => blocked.title),
   ].join(" ").toLowerCase();
   return haystack.includes(normalized);
+}
+
+function pluralize(count: number, label: string) {
+  return count === 1 ? label : `${label}s`;
+}
+
+function relationshipErrorMessage(err: ApiError, fallback: string) {
+  if (err.code === "not_found") {
+    return `${fallback} The linked issue may have changed outside this view; refresh relationship context and try again.`;
+  }
+  if (err.code === "cycle_detected") {
+    return `${fallback} Refresh relationship context if the candidate list looks stale.`;
+  }
+  return fallback;
 }

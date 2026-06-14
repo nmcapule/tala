@@ -218,7 +218,7 @@ export function tagStyle(tag: Tag): React.CSSProperties | undefined {
 
 export function isValidTagColor(color: string) {
   if (!color) return true;
-  return Boolean(tagColorTokens[color] || normalizedHexColor(color));
+  return Boolean(tagColorTokens[color.trim().toLowerCase()] || normalizedHexColor(color));
 }
 
 export function readableTextColor(color: string) {

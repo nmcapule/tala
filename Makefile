@@ -1,4 +1,4 @@
-.PHONY: browser-smoke build dev frontend-build frontend-typecheck own-db smoke test verify-production-binary
+.PHONY: browser-smoke build dev fixture-db frontend-build frontend-typecheck own-db smoke test verify-production-binary
 
 GO_ADDR ?= 127.0.0.1:8081
 DB ?= .tala/tala.db
@@ -6,12 +6,17 @@ SMOKE_URL ?= http://$(GO_ADDR)
 TALA_SMOKE_DB ?= $(OWN_DB)
 OWN_DB_ADDR ?= 127.0.0.1:8081
 OWN_DB ?= .tala/tala.db
+FIXTURE_DB ?= /tmp/tala-fixture.db
+FIXTURE_ADDR ?= 127.0.0.1:18082
 
 dev:
 	go run ./cmd/tala -addr $(GO_ADDR) -db $(DB)
 
 own-db:
 	go run ./cmd/tala -addr $(OWN_DB_ADDR) -db $(OWN_DB)
+
+fixture-db:
+	scripts/create-fixture-db.sh $(FIXTURE_DB) $(FIXTURE_ADDR)
 
 frontend-build:
 	bun run build

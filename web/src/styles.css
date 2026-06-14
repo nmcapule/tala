@@ -18,6 +18,7 @@ button { cursor: pointer; }
 .topbar p { margin: 1px 0 0; color: #5a534a; font-size: 12px; font-weight: 650; }
 .top-actions { display: flex; gap: 8px; }
 .avatar, .icon-button { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid #c9bdac; background: #fffdf8; color: #191714; }
+.icon-button.active { border-color: #2d2a7a; background: #f0efff; color: #2d2a7a; }
 .icon-button.primary { background: #191714; color: #fff; }
 .icon-button.small { width: 28px; height: 28px; border-radius: 4px; }
 .content { padding: 16px; }
@@ -26,7 +27,7 @@ button { cursor: pointer; }
 .brand-row { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; font-size: 24px; }
 .mark { width: 36px; height: 36px; display: grid; place-items: center; background: #191714; color: #fff; border-radius: 4px; font-family: Newsreader, Georgia, serif; }
 .login-panel { display: flex; flex-direction: column; gap: 12px; }
-.login-panel p, .profile p { color: #5a534a; margin: 0 0 10px; }
+.login-panel p, .profile p, .local-data p { color: #5a534a; margin: 0 0 10px; }
 .login-features { margin-top: 28px; display: grid; gap: 8px; color: #5a534a; font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .login-features span { display: flex; gap: 8px; align-items: center; }
 
@@ -74,6 +75,7 @@ input:focus, textarea:focus, select:focus { border-color: #8b8173; box-shadow: 0
 .status-section.drop-enabled { outline: 1px dashed #8b8173; outline-offset: 5px; border-radius: 6px; }
 .issue-list { display: grid; gap: 8px; }
 .issue-card { display: grid; grid-template-columns: 1fr; gap: 7px; background: #fffdf8; border: 1px solid #c9bdac; border-left: 4px solid #8b8173; border-radius: 6px; padding: 10px; }
+.issue-card.in-progress { border-left-color: #2d2a7a; }
 .issue-card.blocked { border-left-color: #b42318; }
 .issue-card.dragging { opacity: .58; }
 .issue-card > select { min-height: 36px; padding: 7px 10px; }
@@ -82,6 +84,15 @@ input:focus, textarea:focus, select:focus { border-color: #8b8173; box-shadow: 0
 .card-title-row h3, .dependency h3 { margin: 0; font-size: 16px; line-height: 22px; }
 .card-title-row h2, .card-title-row h3 { min-width: 0; overflow-wrap: anywhere; }
 .card-title-row span { flex: 0 0 auto; color: #5a534a; font-size: 11px; font-weight: 700; }
+.work-indicator { position: relative; display: inline-block; width: 9px; height: 9px; margin-right: 3px; border-radius: 999px; background: #2d2a7a; vertical-align: 1px; }
+.work-indicator::after { content: ""; position: absolute; inset: -4px; border: 1px solid #2d2a7a; border-radius: inherit; animation: work-pulse 1.35s ease-out infinite; }
+@keyframes work-pulse { 0% { opacity: .75; transform: scale(.7); } 100% { opacity: 0; transform: scale(1.65); } }
+.issue-card.compact-card { grid-template-columns: minmax(0, 1fr) 132px; gap: 8px; padding: 7px 8px; border-left-width: 3px; }
+.issue-card.compact-card .card-main { gap: 5px; }
+.issue-card.compact-card .card-title-row { align-items: center; }
+.issue-card.compact-card .card-title-row h3 { font-size: 14px; line-height: 19px; }
+.issue-card.compact-card .meta-row, .issue-card.compact-card .card-footer { gap: 4px; }
+.issue-card.compact-card > select { min-height: 32px; padding: 5px 8px; font-size: 12px; }
 .detail-title-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 0 0 auto; max-width: 44%; flex-wrap: wrap; }
 .meta-row, .tag-row, .card-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 0; }
 .card-footer { color: #5a534a; font-size: 11px; line-height: 16px; font-weight: 700; }
@@ -140,12 +151,14 @@ input:focus, textarea:focus, select:focus { border-color: #8b8173; box-shadow: 0
 .relationship-group { display: grid; gap: 6px; }
 .relationship-group > span { color: #5a534a; font-size: 11px; font-weight: 750; }
 .relationship-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: 6px; min-width: 0; background: #f1eadf; border: 1px solid #e8dfd2; border-radius: 4px; padding: 8px; }
+.relationship-item.compact-entry { gap: 5px; padding: 7px 8px; }
 .relationship-link { min-width: 0; overflow-wrap: anywhere; border: 0; background: transparent; color: #191714; text-align: left; font-size: 13px; font-weight: 650; line-height: 18px; padding: 0; }
 .relationship-link:hover { color: #2d2a7a; text-decoration: underline; text-underline-offset: 2px; }
 .comments { display: grid; gap: 10px; }
 .comment { min-width: 0; border-left: 2px solid #c9bdac; padding-left: 10px; overflow-wrap: anywhere; }
 .comment > div:first-child { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; font-size: 12px; }
 .comment span { color: #5a534a; }
+.comment-note { color: #5a534a; font-size: 12px; line-height: 17px; margin: -2px 0 0; overflow-wrap: anywhere; }
 .comment-preview { min-width: 0; min-height: 96px; border: 1px solid #e8dfd2; background: #f7f3ec; border-radius: 4px; padding: 10px 12px; overflow-wrap: anywhere; }
 
 .planning { display: grid; gap: 10px; }
@@ -154,6 +167,7 @@ input:focus, textarea:focus, select:focus { border-color: #8b8173; box-shadow: 0
 .tree-node.root { margin-left: 0; border-left-color: #8b8173; }
 .tree-node-button, .dependency-heading { width: 100%; display: flex; align-items: flex-start; gap: 8px; text-align: left; border: 0; background: #fffdf8; color: #191714; }
 .tree-node-button { border: 1px solid #e8dfd2; border-radius: 6px; padding: 10px; }
+.tree-node-button.compact-entry { padding: 7px 8px; }
 .tree-node-icon { flex: 0 0 auto; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: #f1eadf; color: #5a534a; }
 .tree-node-main { display: grid; gap: 7px; min-width: 0; flex: 1; }
 .tree-node-title-row { display: grid; gap: 3px; min-width: 0; }
@@ -165,6 +179,8 @@ input:focus, textarea:focus, select:focus { border-color: #8b8173; box-shadow: 0
 .tree-children { display: grid; gap: 6px; }
 .tree-empty-children { margin-left: 10px; border: 1px dashed #d8ccbb; border-radius: 6px; background: #f7f3ec; color: #5a534a; padding: 8px 10px; font-size: 12px; line-height: 17px; font-weight: 700; }
 .dependency-heading { justify-content: space-between; border-bottom: 1px solid #e8dfd2; padding: 0 0 10px; }
+.dependency.compact-entry { padding: 8px; }
+.dependency.compact-entry .dependency-heading { border-bottom: 0; padding-bottom: 0; }
 .dependency-heading > div { min-width: 0; display: grid; gap: 7px; }
 .dependency-section { display: grid; gap: 8px; }
 .dependency-section-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 2px 0; }
@@ -184,10 +200,13 @@ input:focus, textarea:focus, select:focus { border-color: #8b8173; box-shadow: 0
 .dependency-line.resolved { color: #257a57; }
 .resolved-dependencies { display: grid; gap: 8px; padding: 4px 0; }
 .resolved-row { display: grid; gap: 3px; width: 100%; text-align: left; border: 1px solid #e8dfd2; border-radius: 6px; background: #f7f3ec; color: #191714; padding: 9px 10px; }
+.resolved-row.compact-entry { padding: 7px 8px; }
 .resolved-row span { font-weight: 750; line-height: 18px; overflow-wrap: anywhere; }
 .resolved-row small { color: #5a534a; line-height: 16px; overflow-wrap: anywhere; }
 .profile { text-align: center; justify-items: center; }
 .profile-stack { display: grid; gap: 12px; }
+.local-data p { font-size: 13px; line-height: 18px; overflow-wrap: anywhere; }
+.local-data code { font-size: 12px; background: #f1eadf; border: 1px solid #e8dfd2; border-radius: 4px; padding: 1px 4px; }
 .tag-admin { align-items: stretch; }
 .tag-list { display: grid; gap: 8px; }
 .tag-editor { display: grid; grid-template-columns: 1fr; gap: 6px; background: #f1eadf; border: 1px solid #e8dfd2; border-radius: 4px; padding: 7px; }
@@ -234,4 +253,12 @@ input:focus, textarea:focus, select:focus { border-color: #8b8173; box-shadow: 0
   .content { padding: 20px; }
   .field-action-row, .inline-controls { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
   .field-action-row .button, .inline-controls .button { width: auto; white-space: nowrap; }
+}
+
+@media (max-width: 520px) {
+  .issue-card.compact-card { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .work-indicator::after { animation: none; opacity: .35; }
 }

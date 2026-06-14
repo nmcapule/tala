@@ -671,6 +671,23 @@ func TestRESTTagColorCanBeCleared(t *testing.T) {
 	if tokenTag.Color == nil || *tokenTag.Color != "secondary-container" {
 		t.Fatalf("expected token color to be preserved, got %#v", tokenTag.Color)
 	}
+	casedTokenCreate := doJSON(t, handler, http.MethodPost, "/api/tags", "alex", map[string]any{"name": "cased token tag", "color": " Secondary-Container "})
+	if casedTokenCreate.Code != http.StatusCreated {
+		t.Fatalf("expected cased token tag color to be accepted, got %d %s", casedTokenCreate.Code, casedTokenCreate.Body.String())
+	}
+	decodeBody(t, casedTokenCreate, &tokenTag)
+	if tokenTag.Color == nil || *tokenTag.Color != "secondary-container" {
+		t.Fatalf("expected cased token color to be normalized, got %#v", tokenTag.Color)
+	}
+	shortHexCreate := doJSON(t, handler, http.MethodPost, "/api/tags", "alex", map[string]any{"name": "short hex tag", "color": "B5D"})
+	if shortHexCreate.Code != http.StatusCreated {
+		t.Fatalf("expected short hex tag color to be accepted, got %d %s", shortHexCreate.Code, shortHexCreate.Body.String())
+	}
+	var shortHexTag domain.Tag
+	decodeBody(t, shortHexCreate, &shortHexTag)
+	if shortHexTag.Color == nil || *shortHexTag.Color != "#bb55dd" {
+		t.Fatalf("expected short hex color to be normalized, got %#v", shortHexTag.Color)
+	}
 
 	create := doJSON(t, handler, http.MethodPost, "/api/tags", "alex", map[string]any{"name": "docs", "color": "#b5f4d8"})
 	if create.Code != http.StatusCreated {
@@ -719,6 +736,14 @@ func TestRESTTagColorCanBeCleared(t *testing.T) {
 	decodeBody(t, trimColor, &tag)
 	if tag.Color == nil || *tag.Color != "#ffd7bd" {
 		t.Fatalf("expected color to be trimmed, got %#v", tag.Color)
+	}
+	upperHexColor := doJSON(t, handler, http.MethodPatch, "/api/tags/"+tag.ID, "alex", map[string]any{"color": "B5F4D8"})
+	if upperHexColor.Code != http.StatusOK {
+		t.Fatalf("upper hex color update failed: %d %s", upperHexColor.Code, upperHexColor.Body.String())
+	}
+	decodeBody(t, upperHexColor, &tag)
+	if tag.Color == nil || *tag.Color != "#b5f4d8" {
+		t.Fatalf("expected full hex color to be normalized, got %#v", tag.Color)
 	}
 	tokenColor := doJSON(t, handler, http.MethodPatch, "/api/tags/"+tag.ID, "alex", map[string]any{"color": " tertiary-container "})
 	if tokenColor.Code != http.StatusOK {
