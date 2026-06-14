@@ -963,6 +963,20 @@ agent-browser --session "$session" eval "(() => {
   }
   return true;
 })()" >/dev/null
+agent-browser --session "$session" find role button click --name "Change username" >/dev/null
+agent-browser --session "$session" wait --text "Welcome to Tala" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (localStorage.getItem('tala.username') !== null) {
+    throw new Error('changing username should clear stored session');
+  }
+  if (document.querySelector('.bottom-nav')) {
+    throw new Error('logged-out screen should not keep app navigation visible');
+  }
+  if (!document.querySelector('input[placeholder=\"e.g. jdoe_ops\"]')) {
+    throw new Error('changing username should return to login form');
+  }
+  return true;
+})()" >/dev/null
 
 curl -fsSI "$base/" | awk 'NR == 1 { if ($2 != 200) exit 1 }'
 echo "browser smoke ok: $base"
