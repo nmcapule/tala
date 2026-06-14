@@ -36,7 +36,7 @@ Only read `.tala/tala.db` directly for diagnostics or verification when MCP tool
 For UI-related bugs and UI-related comment updates, always include one or more uploaded image references in the Tala issue description or comment. UI-related work includes visual regressions, layout/rendering defects, design mismatches, browser QA findings, frontend interaction bugs, and comments that report or compare visible UI state.
 
 - Prefer screenshots captured through `agent-browser` when the state is reproducible in the UI.
-- Save screenshots to a local file path, upload with `mcp__tala.image_upload` when available, and paste the returned `markdown` into the issue description or comment.
+- Save screenshots to a local file path, upload with `mcp__tala.image_upload` when available, and paste the returned `markdown` into the next issue description or comment update. Uploading the image alone is not enough; the uploaded image must be embedded in the Tala entry update that reports the UI state.
 - Include enough context near the image to make it useful: viewport/device, route or screen, relevant state, and what the image proves.
 - If Tala image upload is unavailable, capture or preserve the image locally when possible, add a clear blocker note, and explain what must be uploaded later.
 - If no image can be captured, say why in the issue/comment and include the best reproducible UI context instead.

@@ -45,6 +45,7 @@
 
 - Omit the `References` section when there are no relevant docs, issues, files, logs, or external links.
 - Omit the `Visual references` section only for non-UI issues. If a UI bug cannot include an uploaded image, keep the section and explain why capture/upload was unavailable.
+- When visual evidence is required, upload the image first and embed the returned Markdown in the next issue description or comment update. The upload operation by itself does not update the issue record.
 - Link blockers when one issue cannot proceed until another is resolved.
 - Avoid blocker links for simple ordering preferences.
 
