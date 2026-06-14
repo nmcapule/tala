@@ -25,3 +25,31 @@ Verification evidence:
 - `bun run typecheck`
 - `bun run build` for frontend planning-view changes
 - Mobile browser screenshots attached to the hierarchy and blocker child issues
+
+## Roadmap: MCP agent workflow
+
+Tala issue: `issue_732d87c9-0c7b-4b27-9bdc-1342971fd1d1`
+
+Closed: 2026-06-14
+
+Closure evidence:
+
+- MCP tools expose issue create, update, search, get, comments, relationship mutation, assignment, status, priority, and image upload workflows.
+- MCP resources expose compact board, detail, tree, blocker, and planning context.
+- Protocol edge cases, structured tool results, resource errors, origin checks, and stdio framing are covered by tests and smoke checks.
+- Completed P1 children:
+  - `issue_c1550c1a-046c-4238-ad73-fce10f595d3d` Improve MCP planning resource quality.
+  - `issue_ff8be893-75e2-4e59-af65-03aae246432d` Tune MCP resource compactness.
+  - `issue_cb878880-c149-4386-b91d-8a9fe32e5484` Keep protocol edge cases covered.
+  - `issue_dc9ea56c-54b0-46d8-8377-dd4739b57901` Audit MCP tool schemas.
+
+Lower-priority follow-ups moved outside this P1 scope:
+
+- `issue_cfd39c9f-1ec8-4054-b414-93b2f23df441` Reconcile MCP transport and username behavior with design doc.
+- `issue_807d80b4-5665-4d21-8778-6fef7a286bb3` Design future MCP session username behavior.
+
+Verification evidence:
+
+- `go test ./internal/mcp`
+- `go test ./...`
+- `scripts/smoke.sh` MCP coverage referenced by completed child issues
