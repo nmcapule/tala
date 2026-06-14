@@ -88,9 +88,14 @@ func (s *Server) listIssues(w http.ResponseWriter, r *http.Request) {
 		Priority:  q.Get("priority"),
 		Assignee:  q.Get("assignee"),
 		Tag:       q.Get("tag"),
+		ID:        q.Get("id"),
 		ParentID:  q.Get("parent_id"),
 		BlockedBy: q.Get("blocked_by"),
+		BlockerOf: q.Get("blocker_of"),
+		State:     q.Get("state"),
 		Query:     q.Get("q"),
+		Sort:      q.Get("sort"),
+		Order:     q.Get("order"),
 	})
 	respond(w, issues, err, http.StatusOK)
 }

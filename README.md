@@ -135,6 +135,8 @@ Issues:
 - `GET /api/issues/{id}`
 - `PATCH /api/issues/{id}`
 
+`GET /api/issues` accepts `status`, `priority`, `assignee`, `tag`, `id`, `parent_id`, `blocked_by`, `blocker_of`, `state`, `q`, `sort`, and `order`. Valid states are `open`, `blocked`, and `done`; valid sort fields are `priority`, `updated_at`, `created_at`, `title`, and `status`.
+
 Comments:
 
 - `GET /api/issues/{id}/comments`

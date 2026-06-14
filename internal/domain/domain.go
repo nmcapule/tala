@@ -62,9 +62,14 @@ type IssueFilters struct {
 	Priority  string `json:"priority"`
 	Assignee  string `json:"assignee"`
 	Tag       string `json:"tag"`
+	ID        string `json:"id"`
 	ParentID  string `json:"parent_id"`
 	BlockedBy string `json:"blocked_by"`
+	BlockerOf string `json:"blocker_of"`
+	State     string `json:"state"`
 	Query     string `json:"q"`
+	Sort      string `json:"sort"`
+	Order     string `json:"order"`
 }
 
 func ValidStatus(status Status) bool {

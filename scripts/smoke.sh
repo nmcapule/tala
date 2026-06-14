@@ -85,6 +85,27 @@ invalid_priority_filter_code="$(
 test "$invalid_priority_filter_code" = "400"
 bun -e 'let d=require("/tmp/tala-smoke-invalid-priority-filter.json"); if(d.error?.code !== "validation_error" || d.error?.field !== "priority") process.exit(1)'
 
+invalid_state_filter_code="$(
+  curl -sS -o /tmp/tala-smoke-invalid-state-filter.json -w '%{http_code}' \
+    "$base/api/issues?state=waiting"
+)"
+test "$invalid_state_filter_code" = "400"
+bun -e 'let d=require("/tmp/tala-smoke-invalid-state-filter.json"); if(d.error?.code !== "validation_error" || d.error?.field !== "state") process.exit(1)'
+
+invalid_sort_filter_code="$(
+  curl -sS -o /tmp/tala-smoke-invalid-sort-filter.json -w '%{http_code}' \
+    "$base/api/issues?sort=rank"
+)"
+test "$invalid_sort_filter_code" = "400"
+bun -e 'let d=require("/tmp/tala-smoke-invalid-sort-filter.json"); if(d.error?.code !== "validation_error" || d.error?.field !== "sort") process.exit(1)'
+
+invalid_order_filter_code="$(
+  curl -sS -o /tmp/tala-smoke-invalid-order-filter.json -w '%{http_code}' \
+    "$base/api/issues?order=reverse"
+)"
+test "$invalid_order_filter_code" = "400"
+bun -e 'let d=require("/tmp/tala-smoke-invalid-order-filter.json"); if(d.error?.code !== "validation_error" || d.error?.field !== "order") process.exit(1)'
+
 blocker="$(
   curl -fsS -X POST "$base/api/issues" \
     -H 'Content-Type: application/json' \
@@ -182,6 +203,18 @@ bun -e 'let d=require("/tmp/tala-smoke-filter-assignee.json"); if(!d.some(i => i
 
 curl -fsS "$base/api/issues?blocked_by=$blocker_id" >/tmp/tala-smoke-filter-blocked-by.json
 bun -e 'let d=require("/tmp/tala-smoke-filter-blocked-by.json"); if(!d.some(i => i.id === process.argv[1])) process.exit(1)' "$issue_id"
+
+curl -fsS "$base/api/issues?id=$issue_id" >/tmp/tala-smoke-filter-id.json
+bun -e 'let d=require("/tmp/tala-smoke-filter-id.json"); if(d.length !== 1 || d[0].id !== process.argv[1]) process.exit(1)' "$issue_id"
+
+curl -fsS "$base/api/issues?blocker_of=$issue_id" >/tmp/tala-smoke-filter-blocker-of.json
+bun -e 'let d=require("/tmp/tala-smoke-filter-blocker-of.json"); if(!d.some(i => i.id === process.argv[1])) process.exit(1)' "$blocker_id"
+
+curl -fsS "$base/api/issues?state=blocked" >/tmp/tala-smoke-filter-state-blocked.json
+bun -e 'let d=require("/tmp/tala-smoke-filter-state-blocked.json"); if(!d.some(i => i.id === process.argv[1])) process.exit(1)' "$issue_id"
+
+curl -fsS "$base/api/issues?sort=updated_at&order=desc" >/tmp/tala-smoke-filter-sort.json
+bun -e 'let d=require("/tmp/tala-smoke-filter-sort.json"); if(!Array.isArray(d) || d.length === 0) process.exit(1)'
 
 curl -fsS "$base/api/issues?tag=api&priority=P2&q=Smoke" >/tmp/tala-smoke-filter-combined.json
 bun -e 'let d=require("/tmp/tala-smoke-filter-combined.json"); if(!d.some(i => i.id === process.argv[1])) process.exit(1)' "$issue_id"

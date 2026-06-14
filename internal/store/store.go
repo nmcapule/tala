@@ -233,6 +233,26 @@ func (s *Store) ListIssues(ctx context.Context, filters domain.IssueFilters) ([]
 		clauses = append(clauses, "EXISTS (SELECT 1 FROM issue_tags it JOIN tags t ON t.id = it.tag_id WHERE it.issue_id = i.id AND lower(t.name) = lower(?))")
 		args = append(args, filters.Tag)
 	}
+	if filters.ID != "" {
+		clauses = append(clauses, "i.id = ?")
+		args = append(args, filters.ID)
+	}
+	if filters.BlockerOf != "" {
+		clauses = append(clauses, "EXISTS (SELECT 1 FROM issue_blockers ib WHERE ib.blocker_issue_id = i.id AND ib.issue_id = ?)")
+		args = append(args, filters.BlockerOf)
+	}
+	switch filters.State {
+	case "open":
+		clauses = append(clauses, "i.status IN ('new','in_progress')")
+	case "blocked":
+		clauses = append(clauses, `EXISTS (
+			SELECT 1 FROM issue_blockers ib
+			JOIN issues b ON b.id = ib.blocker_issue_id
+			WHERE ib.issue_id = i.id AND b.status NOT IN ('completed','canceled')
+		)`)
+	case "done":
+		clauses = append(clauses, "i.status = 'completed'")
+	}
 	if filters.Query != "" {
 		q := "%" + strings.ToLower(filters.Query) + "%"
 		clauses = append(clauses, `(lower(i.title) LIKE ?
@@ -246,7 +266,7 @@ func (s *Store) ListIssues(ctx context.Context, filters domain.IssueFilters) ([]
 			OR EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = i.id AND lower(c.body_markdown) LIKE ?))`)
 		args = append(args, q, q, q, q, q, q, q, q, q)
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT i.id,i.title,i.description_markdown,i.status,i.priority,i.assignee,i.created_by,i.parent_issue_id,i.created_at,i.updated_at FROM issues i WHERE `+strings.Join(clauses, " AND ")+` ORDER BY CASE i.priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END, i.updated_at DESC, i.id ASC`, args...)
+	rows, err := s.db.QueryContext(ctx, `SELECT i.id,i.title,i.description_markdown,i.status,i.priority,i.assignee,i.created_by,i.parent_issue_id,i.created_at,i.updated_at FROM issues i WHERE `+strings.Join(clauses, " AND ")+issueOrderBy(filters), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -268,6 +288,30 @@ func (s *Store) ListIssues(ctx context.Context, filters domain.IssueFilters) ([]
 		}
 	}
 	return issues, nil
+}
+
+func issueOrderBy(filters domain.IssueFilters) string {
+	if filters.Sort == "" {
+		return ` ORDER BY CASE i.priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END, i.updated_at DESC, i.id ASC`
+	}
+	direction := "ASC"
+	if filters.Order == "desc" {
+		direction = "DESC"
+	}
+	switch filters.Sort {
+	case "priority":
+		return ` ORDER BY CASE i.priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END ` + direction + `, i.updated_at DESC, i.id ASC`
+	case "updated_at":
+		return ` ORDER BY i.updated_at ` + direction + `, i.id ASC`
+	case "created_at":
+		return ` ORDER BY i.created_at ` + direction + `, i.id ASC`
+	case "title":
+		return ` ORDER BY lower(i.title) ` + direction + `, i.id ASC`
+	case "status":
+		return ` ORDER BY CASE i.status WHEN 'new' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'completed' THEN 2 WHEN 'canceled' THEN 3 ELSE 4 END ` + direction + `, i.id ASC`
+	default:
+		return ` ORDER BY i.id ASC`
+	}
 }
 
 func (s *Store) ListTags(ctx context.Context) ([]domain.Tag, error) {

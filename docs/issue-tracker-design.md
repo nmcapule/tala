@@ -210,9 +210,14 @@ All responses use JSON. All mutating endpoints require a username through `X-Tal
 - `priority`
 - `assignee`
 - `tag`
+- `id`
 - `parent_id`
 - `blocked_by`
+- `blocker_of`
+- `state` (`open`, `blocked`, `done`)
 - `q`
+- `sort` (`priority`, `updated_at`, `created_at`, `title`, `status`)
+- `order` (`asc`, `desc`)
 
 Create issue request:
 

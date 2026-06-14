@@ -245,8 +245,12 @@ func TestRESTIssueWorkflowAndValidation(t *testing.T) {
 	}
 	assertIssueFilter(t, handler, "/api/issues?status=in_progress", blocked.ID)
 	assertIssueFilter(t, handler, "/api/issues?assignee=sam", blocked.ID)
+	assertIssueFilter(t, handler, "/api/issues?id="+blocked.ID, blocked.ID)
 	assertIssueFilter(t, handler, "/api/issues?parent_id="+parent.ID, blocked.ID)
 	assertIssueFilter(t, handler, "/api/issues?blocked_by="+blocker.ID, blocked.ID)
+	assertIssueFilter(t, handler, "/api/issues?blocker_of="+blocked.ID, blocker.ID)
+	assertIssueFilter(t, handler, "/api/issues?state=blocked", blocked.ID)
+	assertIssueFilter(t, handler, "/api/issues?state=open&q=Blocked&sort=title&order=desc", blocked.ID)
 	assertIssueFilter(t, handler, "/api/issues?q=Stored+%2A%2Aas+Markdown%2A%2A", blocked.ID)
 	assertIssueFilter(t, handler, "/api/issues?q=api", blocked.ID)
 	assertIssueFilter(t, handler, "/api/issues?status=+in_progress+&priority=+P1+&assignee=+sam+&tag=+mcp+&parent_id=+"+parent.ID+"+&blocked_by=+"+blocker.ID+"+&q=+Blocked+", blocked.ID)
@@ -273,6 +277,26 @@ func TestRESTIssueWorkflowAndValidation(t *testing.T) {
 	if filterError.Error.Code != domain.CodeNotFound || filterError.Error.Field != "blocked_by" {
 		t.Fatalf("expected blocked_by not_found filter error, got %#v", filterError.Error)
 	}
+	missingIDFilter := httptest.NewRequest(http.MethodGet, "/api/issues?id=issue_missing", nil)
+	missingIDFilterRes := httptest.NewRecorder()
+	handler.ServeHTTP(missingIDFilterRes, missingIDFilter)
+	if missingIDFilterRes.Code != http.StatusNotFound {
+		t.Fatalf("expected missing id filter not_found, got %d: %s", missingIDFilterRes.Code, missingIDFilterRes.Body.String())
+	}
+	decodeBody(t, missingIDFilterRes, &filterError)
+	if filterError.Error.Code != domain.CodeNotFound || filterError.Error.Field != "id" {
+		t.Fatalf("expected id not_found filter error, got %#v", filterError.Error)
+	}
+	missingBlockerOfFilter := httptest.NewRequest(http.MethodGet, "/api/issues?blocker_of=issue_missing_blocked", nil)
+	missingBlockerOfFilterRes := httptest.NewRecorder()
+	handler.ServeHTTP(missingBlockerOfFilterRes, missingBlockerOfFilter)
+	if missingBlockerOfFilterRes.Code != http.StatusNotFound {
+		t.Fatalf("expected missing blocker_of filter not_found, got %d: %s", missingBlockerOfFilterRes.Code, missingBlockerOfFilterRes.Body.String())
+	}
+	decodeBody(t, missingBlockerOfFilterRes, &filterError)
+	if filterError.Error.Code != domain.CodeNotFound || filterError.Error.Field != "blocker_of" {
+		t.Fatalf("expected blocker_of not_found filter error, got %#v", filterError.Error)
+	}
 	invalidStatusFilter := httptest.NewRequest(http.MethodGet, "/api/issues?status=shipped", nil)
 	invalidStatusFilterRes := httptest.NewRecorder()
 	handler.ServeHTTP(invalidStatusFilterRes, invalidStatusFilter)
@@ -292,6 +316,36 @@ func TestRESTIssueWorkflowAndValidation(t *testing.T) {
 	decodeBody(t, invalidPriorityFilterRes, &filterError)
 	if filterError.Error.Code != domain.CodeValidationError || filterError.Error.Field != "priority" {
 		t.Fatalf("expected priority validation filter error, got %#v", filterError.Error)
+	}
+	invalidStateFilter := httptest.NewRequest(http.MethodGet, "/api/issues?state=waiting", nil)
+	invalidStateFilterRes := httptest.NewRecorder()
+	handler.ServeHTTP(invalidStateFilterRes, invalidStateFilter)
+	if invalidStateFilterRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid state filter validation, got %d: %s", invalidStateFilterRes.Code, invalidStateFilterRes.Body.String())
+	}
+	decodeBody(t, invalidStateFilterRes, &filterError)
+	if filterError.Error.Code != domain.CodeValidationError || filterError.Error.Field != "state" {
+		t.Fatalf("expected state validation filter error, got %#v", filterError.Error)
+	}
+	invalidSortFilter := httptest.NewRequest(http.MethodGet, "/api/issues?sort=rank", nil)
+	invalidSortFilterRes := httptest.NewRecorder()
+	handler.ServeHTTP(invalidSortFilterRes, invalidSortFilter)
+	if invalidSortFilterRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid sort filter validation, got %d: %s", invalidSortFilterRes.Code, invalidSortFilterRes.Body.String())
+	}
+	decodeBody(t, invalidSortFilterRes, &filterError)
+	if filterError.Error.Code != domain.CodeValidationError || filterError.Error.Field != "sort" {
+		t.Fatalf("expected sort validation filter error, got %#v", filterError.Error)
+	}
+	invalidOrderFilter := httptest.NewRequest(http.MethodGet, "/api/issues?order=reverse", nil)
+	invalidOrderFilterRes := httptest.NewRecorder()
+	handler.ServeHTTP(invalidOrderFilterRes, invalidOrderFilter)
+	if invalidOrderFilterRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid order filter validation, got %d: %s", invalidOrderFilterRes.Code, invalidOrderFilterRes.Body.String())
+	}
+	decodeBody(t, invalidOrderFilterRes, &filterError)
+	if filterError.Error.Code != domain.CodeValidationError || filterError.Error.Field != "order" {
+		t.Fatalf("expected order validation filter error, got %#v", filterError.Error)
 	}
 
 	clearAssignee := doJSON(t, handler, http.MethodPatch, "/api/issues/"+blocked.ID, "alex", map[string]any{"assignee": nil})

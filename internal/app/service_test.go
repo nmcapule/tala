@@ -588,13 +588,30 @@ func TestSearchIssueFiltersTrimWhitespace(t *testing.T) {
 		Tag:       " mcp ",
 		ParentID:  " " + parent.ID + " ",
 		BlockedBy: " " + blocker.ID + " ",
+		State:     " blocked ",
 		Query:     " Markdown filter ",
+		Sort:      " title ",
+		Order:     " DESC ",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(results) != 1 || results[0].ID != child.ID {
 		t.Fatalf("expected padded filters to match child issue, got %#v", results)
+	}
+	results, err = svc.SearchIssues(ctx, domain.IssueFilters{ID: " " + child.ID + " "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].ID != child.ID {
+		t.Fatalf("expected exact ID filter to match child issue, got %#v", results)
+	}
+	results, err = svc.SearchIssues(ctx, domain.IssueFilters{BlockerOf: " " + child.ID + " "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].ID != blocker.ID {
+		t.Fatalf("expected blocker_of filter to match blocker issue, got %#v", results)
 	}
 	_, err = svc.SearchIssues(ctx, domain.IssueFilters{ParentID: " issue_missing_parent "})
 	if appErr, ok := err.(*domain.AppError); !ok || appErr.Code != domain.CodeNotFound || appErr.Field != "parent_id" {
@@ -604,6 +621,14 @@ func TestSearchIssueFiltersTrimWhitespace(t *testing.T) {
 	if appErr, ok := err.(*domain.AppError); !ok || appErr.Code != domain.CodeNotFound || appErr.Field != "blocked_by" {
 		t.Fatalf("expected blocked_by not_found error, got %#v", err)
 	}
+	_, err = svc.SearchIssues(ctx, domain.IssueFilters{ID: " issue_missing "})
+	if appErr, ok := err.(*domain.AppError); !ok || appErr.Code != domain.CodeNotFound || appErr.Field != "id" {
+		t.Fatalf("expected id not_found error, got %#v", err)
+	}
+	_, err = svc.SearchIssues(ctx, domain.IssueFilters{BlockerOf: " issue_missing_blocked "})
+	if appErr, ok := err.(*domain.AppError); !ok || appErr.Code != domain.CodeNotFound || appErr.Field != "blocker_of" {
+		t.Fatalf("expected blocker_of not_found error, got %#v", err)
+	}
 	_, err = svc.SearchIssues(ctx, domain.IssueFilters{Status: " shipped "})
 	if appErr, ok := err.(*domain.AppError); !ok || appErr.Code != domain.CodeValidationError || appErr.Field != "status" {
 		t.Fatalf("expected status validation error, got %#v", err)
@@ -611,6 +636,18 @@ func TestSearchIssueFiltersTrimWhitespace(t *testing.T) {
 	_, err = svc.SearchIssues(ctx, domain.IssueFilters{Priority: " P9 "})
 	if appErr, ok := err.(*domain.AppError); !ok || appErr.Code != domain.CodeValidationError || appErr.Field != "priority" {
 		t.Fatalf("expected priority validation error, got %#v", err)
+	}
+	_, err = svc.SearchIssues(ctx, domain.IssueFilters{State: " waiting "})
+	if appErr, ok := err.(*domain.AppError); !ok || appErr.Code != domain.CodeValidationError || appErr.Field != "state" {
+		t.Fatalf("expected state validation error, got %#v", err)
+	}
+	_, err = svc.SearchIssues(ctx, domain.IssueFilters{Sort: " rank "})
+	if appErr, ok := err.(*domain.AppError); !ok || appErr.Code != domain.CodeValidationError || appErr.Field != "sort" {
+		t.Fatalf("expected sort validation error, got %#v", err)
+	}
+	_, err = svc.SearchIssues(ctx, domain.IssueFilters{Order: " reverse "})
+	if appErr, ok := err.(*domain.AppError); !ok || appErr.Code != domain.CodeValidationError || appErr.Field != "order" {
+		t.Fatalf("expected order validation error, got %#v", err)
 	}
 }
 

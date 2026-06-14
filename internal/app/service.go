@@ -338,6 +338,20 @@ func (s *Service) SearchIssues(ctx context.Context, filters domain.IssueFilters)
 	if filters.Priority != "" && !domain.ValidPriority(domain.Priority(filters.Priority)) {
 		return nil, domain.NewError(domain.CodeValidationError, "Unknown priority.", "priority")
 	}
+	if filters.State != "" && !validIssueState(filters.State) {
+		return nil, domain.NewError(domain.CodeValidationError, "Unknown state.", "state")
+	}
+	if filters.Sort != "" && !validIssueSort(filters.Sort) {
+		return nil, domain.NewError(domain.CodeValidationError, "Unknown sort.", "sort")
+	}
+	if filters.Order != "" && filters.Order != "asc" && filters.Order != "desc" {
+		return nil, domain.NewError(domain.CodeValidationError, "Unknown order.", "order")
+	}
+	if filters.ID != "" {
+		if _, err := s.store.GetIssue(ctx, filters.ID); err != nil {
+			return nil, withNotFoundField(err, "id")
+		}
+	}
 	if filters.ParentID != "" {
 		if _, err := s.store.GetIssue(ctx, filters.ParentID); err != nil {
 			return nil, withNotFoundField(err, "parent_id")
@@ -346,6 +360,11 @@ func (s *Service) SearchIssues(ctx context.Context, filters domain.IssueFilters)
 	if filters.BlockedBy != "" {
 		if _, err := s.store.GetIssue(ctx, filters.BlockedBy); err != nil {
 			return nil, withNotFoundField(err, "blocked_by")
+		}
+	}
+	if filters.BlockerOf != "" {
+		if _, err := s.store.GetIssue(ctx, filters.BlockerOf); err != nil {
+			return nil, withNotFoundField(err, "blocker_of")
 		}
 	}
 	return s.store.ListIssues(ctx, filters)
@@ -598,10 +617,33 @@ func normalizeIssueFilters(filters domain.IssueFilters) domain.IssueFilters {
 	filters.Priority = strings.TrimSpace(filters.Priority)
 	filters.Assignee = strings.TrimSpace(filters.Assignee)
 	filters.Tag = strings.TrimSpace(filters.Tag)
+	filters.ID = strings.TrimSpace(filters.ID)
 	filters.ParentID = strings.TrimSpace(filters.ParentID)
 	filters.BlockedBy = strings.TrimSpace(filters.BlockedBy)
+	filters.BlockerOf = strings.TrimSpace(filters.BlockerOf)
+	filters.State = strings.TrimSpace(filters.State)
 	filters.Query = strings.TrimSpace(filters.Query)
+	filters.Sort = strings.TrimSpace(filters.Sort)
+	filters.Order = strings.TrimSpace(strings.ToLower(filters.Order))
 	return filters
+}
+
+func validIssueState(state string) bool {
+	switch state {
+	case "open", "blocked", "done":
+		return true
+	default:
+		return false
+	}
+}
+
+func validIssueSort(sort string) bool {
+	switch sort {
+	case "priority", "updated_at", "created_at", "title", "status":
+		return true
+	default:
+		return false
+	}
 }
 
 func withNotFoundField(err error, field string) error {

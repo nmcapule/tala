@@ -837,9 +837,14 @@ func tools() []map[string]any {
 			enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}),
 			strProp("assignee", "Assignee username."),
 			strProp("tag", "Tag name."),
+			strProp("id", "Exact issue ID."),
 			strProp("parent_id", "Parent issue ID."),
 			strProp("blocked_by", "Blocker issue ID."),
+			strProp("blocker_of", "Issue ID blocked by returned issues."),
+			enumProp("state", []string{"open", "blocked", "done"}),
 			strProp("q", "Text query over title, Markdown description, comments, tags, ID, creator, assignee, status, and priority."),
+			enumProp("sort", []string{"priority", "updated_at", "created_at", "title", "status"}),
+			enumProp("order", []string{"asc", "desc"}),
 		), nil)),
 		tool("issue_get", "Fetch issue detail.", schema(props(strProp("issue_id", "Issue ID.")), []string{"issue_id"})),
 		tool("issue_comment", "Append a Markdown comment.", schema(issueMutationProps(strProp("body_markdown", "Required Markdown comment body.")), []string{"username", "issue_id", "body_markdown"})),
@@ -1095,6 +1100,10 @@ func issueFilterArguments(fields map[string]json.RawMessage) (domain.IssueFilter
 	if appErr != nil {
 		return domain.IssueFilters{}, appErr
 	}
+	id, appErr := optionalStringArgument(fields, "id", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
 	parentID, appErr := optionalStringArgument(fields, "parent_id", "Argument must be a string.")
 	if appErr != nil {
 		return domain.IssueFilters{}, appErr
@@ -1103,7 +1112,23 @@ func issueFilterArguments(fields map[string]json.RawMessage) (domain.IssueFilter
 	if appErr != nil {
 		return domain.IssueFilters{}, appErr
 	}
+	blockerOf, appErr := optionalStringArgument(fields, "blocker_of", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	state, appErr := optionalStringArgument(fields, "state", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
 	query, appErr := optionalStringArgument(fields, "q", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	sort, appErr := optionalStringArgument(fields, "sort", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	order, appErr := optionalStringArgument(fields, "order", "Argument must be a string.")
 	if appErr != nil {
 		return domain.IssueFilters{}, appErr
 	}
@@ -1112,9 +1137,14 @@ func issueFilterArguments(fields map[string]json.RawMessage) (domain.IssueFilter
 		Priority:  priority,
 		Assignee:  assignee,
 		Tag:       tag,
+		ID:        id,
 		ParentID:  parentID,
 		BlockedBy: blockedBy,
+		BlockerOf: blockerOf,
+		State:     state,
 		Query:     query,
+		Sort:      sort,
+		Order:     order,
 	}, nil
 }
 

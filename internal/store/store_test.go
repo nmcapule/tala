@@ -282,6 +282,67 @@ func TestIssueQuerySearchIncludesCommentsTagsAndMetadata(t *testing.T) {
 	assertIssueIDs(t, results, []string{other.ID})
 }
 
+func TestIssueRelationshipStateFiltersAndSorting(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+
+	parent, err := st.CreateIssue(ctx, IssueInput{Title: "Parent", Status: domain.StatusNew, Priority: domain.PriorityP2, CreatedBy: "alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := st.CreateIssue(ctx, IssueInput{Title: "Charlie child", Status: domain.StatusInProgress, Priority: domain.PriorityP1, CreatedBy: "alex", ParentIssueID: &parent.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocker, err := st.CreateIssue(ctx, IssueInput{Title: "Alpha blocker", Status: domain.StatusNew, Priority: domain.PriorityP0, CreatedBy: "sam"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done, err := st.CreateIssue(ctx, IssueInput{Title: "Bravo done", Status: domain.StatusCompleted, Priority: domain.PriorityP4, CreatedBy: "sam"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AddBlocker(ctx, child.ID, blocker.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := st.ListIssues(ctx, domain.IssueFilters{ID: parent.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIssueIDs(t, results, []string{parent.ID})
+
+	results, err = st.ListIssues(ctx, domain.IssueFilters{BlockerOf: child.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIssueIDs(t, results, []string{blocker.ID})
+
+	results, err = st.ListIssues(ctx, domain.IssueFilters{State: "blocked"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIssueIDs(t, results, []string{child.ID})
+
+	results, err = st.ListIssues(ctx, domain.IssueFilters{State: "done"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIssueIDs(t, results, []string{done.ID})
+
+	results, err = st.ListIssues(ctx, domain.IssueFilters{State: "open", Sort: "title", Order: "asc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIssueIDs(t, results, []string{blocker.ID, child.ID, parent.ID})
+
+	results, err = st.ListIssues(ctx, domain.IssueFilters{Sort: "title", Order: "desc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertIssueIDs(t, results, []string{parent.ID, child.ID, done.ID, blocker.ID})
+}
+
 func assertCommentBodies(t *testing.T, comments []domain.Comment, want []string) {
 	t.Helper()
 	if len(comments) != len(want) {

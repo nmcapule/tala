@@ -117,6 +117,7 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	assertRequiredUsername(t, toolList)
 	assertToolSchemasUseScalarTypes(t, toolList)
 	assertToolPropDescriptionContains(t, toolList, "issue_search", "q", "comments", "tags", "creator", "priority")
+	assertToolPropDescriptionContains(t, toolList, "issue_search", "blocker_of", "blocked")
 
 	resources := rpcRequest(t, server, "http://127.0.0.1:8080", "resources/list", map[string]any{})
 	if resources.Code != http.StatusOK {
@@ -341,10 +342,29 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	if len(paddedSearchResults) != 1 {
 		t.Fatalf("expected padded MCP search filters to find one issue, got %d", len(paddedSearchResults))
 	}
+	exactSearch := callTool(t, server, "issue_search", map[string]any{"id": childID})
+	exactSearchResults := exactSearch["result"].(map[string]any)["structuredContent"].([]any)
+	if len(exactSearchResults) != 1 {
+		t.Fatalf("expected MCP id search to find one issue, got %d", len(exactSearchResults))
+	}
+	blockerOfSearch := callTool(t, server, "issue_search", map[string]any{"blocker_of": childID})
+	blockerOfSearchResults := blockerOfSearch["result"].(map[string]any)["structuredContent"].([]any)
+	if len(blockerOfSearchResults) != 2 {
+		t.Fatalf("expected MCP blocker_of search to find blockers, got %d", len(blockerOfSearchResults))
+	}
+	stateSearch := callTool(t, server, "issue_search", map[string]any{"state": "blocked", "sort": "title", "order": "asc"})
+	stateSearchResults := stateSearch["result"].(map[string]any)["structuredContent"].([]any)
+	if len(stateSearchResults) == 0 {
+		t.Fatal("expected MCP state search to find blocked issues")
+	}
 	missingParentSearch := callToolExpectToolError(t, server, "issue_search", map[string]any{"parent_id": "issue_missing_parent"})
 	assertToolAppError(t, missingParentSearch, domain.CodeNotFound, "parent_id")
 	missingBlockedBySearch := callToolExpectToolError(t, server, "issue_search", map[string]any{"blocked_by": "issue_missing_blocker"})
 	assertToolAppError(t, missingBlockedBySearch, domain.CodeNotFound, "blocked_by")
+	missingIDSearch := callToolExpectToolError(t, server, "issue_search", map[string]any{"id": "issue_missing"})
+	assertToolAppError(t, missingIDSearch, domain.CodeNotFound, "id")
+	missingBlockerOfSearch := callToolExpectToolError(t, server, "issue_search", map[string]any{"blocker_of": "issue_missing_blocked"})
+	assertToolAppError(t, missingBlockerOfSearch, domain.CodeNotFound, "blocker_of")
 	invalidGetIssueID := callToolExpectToolError(t, server, "issue_get", map[string]any{"issue_id": 42})
 	assertToolAppError(t, invalidGetIssueID, domain.CodeValidationError, "issue_id")
 	missingGetIssueID := callToolExpectToolError(t, server, "issue_get", map[string]any{})
@@ -353,6 +373,12 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	assertToolAppError(t, invalidSearchQuery, domain.CodeValidationError, "q")
 	nullSearchStatus := callToolExpectToolError(t, server, "issue_search", map[string]any{"status": nil})
 	assertToolAppError(t, nullSearchStatus, domain.CodeValidationError, "status")
+	invalidSearchState := callToolExpectToolError(t, server, "issue_search", map[string]any{"state": "waiting"})
+	assertToolAppError(t, invalidSearchState, domain.CodeValidationError, "state")
+	invalidSearchSort := callToolExpectToolError(t, server, "issue_search", map[string]any{"sort": "rank"})
+	assertToolAppError(t, invalidSearchSort, domain.CodeValidationError, "sort")
+	invalidSearchOrder := callToolExpectToolError(t, server, "issue_search", map[string]any{"order": "reverse"})
+	assertToolAppError(t, invalidSearchOrder, domain.CodeValidationError, "order")
 
 	board := readResource(t, server, "tala://board")
 	var boardData map[string][]map[string]any
