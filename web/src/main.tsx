@@ -5,14 +5,17 @@ import {
   ArrowLeft,
   Blocks,
   Check,
+  ChevronDown,
   ChevronRight,
   CircleDot,
   ClipboardList,
+  Clock,
   Filter,
   GitBranch,
   Link2,
   MessageSquare,
   Plus,
+  RefreshCw,
   Search,
   Send,
   Settings,
@@ -51,8 +54,33 @@ type Issue = {
 };
 
 type View = "board" | "hierarchy" | "blockers" | "profile";
+type ActionNotice = { tone: "pending" | "success"; message: string };
+type IssueFilters = {
+  q: string;
+  status: string;
+  assignee: string;
+  priority: string;
+  tag: string;
+  id: string;
+  parent_id: string;
+  blocked_by: string;
+  blocker_of: string;
+  state: string;
+  sort: string;
+  order: string;
+};
 const statuses: Status[] = ["new", "in_progress", "completed", "canceled"];
 const priorities: Priority[] = ["P0", "P1", "P2", "P3", "P4"];
+const filterKeys = ["q", "status", "assignee", "priority", "tag", "id", "parent_id", "blocked_by", "blocker_of", "state", "sort", "order"] as const;
+const states = ["open", "blocked", "done"];
+const sortOptions = [
+  { value: "", label: "Default" },
+  { value: "priority", label: "Priority" },
+  { value: "updated_at", label: "Last update" },
+  { value: "created_at", label: "Created" },
+  { value: "title", label: "Title" },
+  { value: "status", label: "Status" },
+];
 const tagColorTokens: Record<string, string> = {
   surface: "#f7f3ec",
   "surface-dim": "#ded7cc",
@@ -111,7 +139,7 @@ function App() {
   const [view, setView] = useState<View>(initialView);
   const [filterOpen, setFilterOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [filters, setFilters] = useState(emptyFilters());
+  const [filters, setFilters] = useState<IssueFilters>(() => filtersFromLocation());
   const [tags, setTags] = useState<Tag[]>([]);
   const [error, setError] = useState("");
   const [permalinkCopied, setPermalinkCopied] = useState(false);
@@ -119,7 +147,10 @@ function App() {
 
   async function refreshBoard() {
     const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => value && params.set(key, value));
+    filterKeys.forEach((key) => {
+      const value = filters[key];
+      if (value) params.set(key, value);
+    });
     const res = await fetch(`/api/issues?${params}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message || "Unable to load issues.");
@@ -152,14 +183,28 @@ function App() {
   }
 
   function resetFilters() {
-    setFilters(emptyFilters());
+    applyFilters(emptyFilters());
+  }
+
+  function applyFilters(nextFilters: IssueFilters) {
+    setFilters(nextFilters);
+    if (selectedID) {
+      setSelectedID(null);
+      setSelectedIssue(null);
+    }
+    const nextPath = pathWithFilters("board", nextFilters);
+    if (window.location.pathname + window.location.search !== nextPath) {
+      window.history.pushState(null, "", nextPath);
+    }
+    setView("board");
+    lastListView.current = "board";
   }
 
   function openIssue(issueID: string) {
     setSelectedID(issueID);
     setPermalinkCopied(false);
     const nextPath = issuePath(issueID);
-    if (window.location.pathname !== nextPath) {
+    if (window.location.pathname + window.location.search !== nextPath) {
       window.history.pushState(null, "", nextPath);
     }
   }
@@ -167,7 +212,7 @@ function App() {
   function closeIssue() {
     setSelectedID(null);
     setPermalinkCopied(false);
-    const nextPath = viewPath(lastListView.current);
+    const nextPath = pathWithFilters(lastListView.current, filters);
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, "", nextPath);
     }
@@ -187,8 +232,8 @@ function App() {
     setPermalinkCopied(false);
     setView(nextView);
     lastListView.current = nextView;
-    const nextPath = viewPath(nextView);
-    if (window.location.pathname !== nextPath) {
+    const nextPath = pathWithFilters(nextView, filters);
+    if (window.location.pathname + window.location.search !== nextPath) {
       window.history.pushState(null, "", nextPath);
     }
   }
@@ -213,7 +258,7 @@ function App() {
 
   useEffect(() => {
     refreshBoard().catch((err) => setError(err.message));
-  }, [filters.q, filters.status, filters.assignee, filters.priority, filters.tag, filters.parent_id, filters.blocked_by]);
+  }, [filters.q, filters.status, filters.assignee, filters.priority, filters.tag, filters.id, filters.parent_id, filters.blocked_by, filters.blocker_of, filters.state, filters.sort, filters.order]);
 
   useEffect(() => {
     refreshIssueContext().catch((err) => setError(err.message));
@@ -237,6 +282,7 @@ function App() {
         const nextView = viewFromLocation();
         setView(nextView);
         lastListView.current = nextView;
+        setFilters(filtersFromLocation());
       }
     }
     window.addEventListener("popstate", syncRoute);
@@ -274,6 +320,15 @@ function App() {
     }
   }
 
+  async function retryGlobalLoad() {
+    setError("");
+    try {
+      await refreshAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to reload data.");
+    }
+  }
+
   const selected = selectedID
     ? selectedIssue?.id === selectedID
       ? selectedIssue
@@ -306,13 +361,13 @@ function App() {
         </div>
       </header>
 
-      {error && <div className="error-banner"><AlertCircle size={16} />{error}<button onClick={() => setError("")}>Dismiss</button></div>}
+      {error && <RequestError message={error} onRetry={retryGlobalLoad} onDismiss={() => setError("")} />}
 
       <main className="content">
         {selected ? (
-          <IssueDetail issue={selected} username={username} issues={allIssues} onOpenIssue={openIssue} onRefresh={refreshAll} onTagsChanged={refreshTags} onClose={closeIssue} />
+          <IssueDetail issue={selected} username={username} issues={allIssues} onOpenIssue={openIssue} onApplyFilters={applyFilters} onRefresh={refreshAll} onTagsChanged={refreshTags} onClose={closeIssue} />
         ) : view === "board" ? (
-          <Board issues={issues} totalIssues={allIssues.length} hasFilters={hasActiveFilters(filters)} username={username} onOpen={openIssue} onRefresh={refresh} onResetFilters={resetFilters} />
+          <Board issues={issues} totalIssues={allIssues.length} filters={filters} hasFilters={hasActiveFilters(filters)} username={username} onOpen={openIssue} onRefresh={refresh} onResetFilters={resetFilters} onApplyFilters={applyFilters} />
         ) : view === "hierarchy" ? (
           <Hierarchy issues={allIssues} onOpen={openIssue} />
         ) : view === "blockers" ? (
@@ -332,7 +387,7 @@ function App() {
         <NavButton active={!selected && view === "profile"} icon={<Settings />} label="Profile" onClick={() => showView("profile")} />
       </nav>
 
-      {filterOpen && <FilterSheet filters={filters} tags={tags} issues={allIssues} setFilters={setFilters} onClose={() => setFilterOpen(false)} />}
+      {filterOpen && <FilterSheet filters={filters} tags={tags} issues={allIssues} onApplyFilters={applyFilters} onClose={() => setFilterOpen(false)} />}
       {createOpen && <CreateSheet username={username} issues={allIssues} onClose={() => setCreateOpen(false)} onCreated={(issue) => {
         setCreateOpen(false);
         openIssue(issue.id);
@@ -368,9 +423,33 @@ function Login({ onLogin }: { onLogin: (username: string) => void }) {
   );
 }
 
-function Board({ issues, totalIssues, hasFilters, username, onOpen, onRefresh, onResetFilters }: { issues: Issue[]; totalIssues: number; hasFilters: boolean; username: string; onOpen: (id: string) => void; onRefresh: () => Promise<void>; onResetFilters: () => void }) {
+function RequestError({ message, onRetry, onDismiss, compact = false }: { message: string; onRetry?: () => void; onDismiss?: () => void; compact?: boolean }) {
+  return <div className={`${compact ? "field-error" : "error-banner"} request-error`}>
+    <AlertCircle size={compact ? 15 : 16} />
+    <span>{message}</span>
+    <div className="request-error-actions">
+      {onRetry && <button type="button" onClick={onRetry}>Retry</button>}
+      {onDismiss && <button type="button" onClick={onDismiss}>Dismiss</button>}
+    </div>
+  </div>;
+}
+
+function ActionStatus({ notice }: { notice: ActionNotice }) {
+  return <div className={`action-status ${notice.tone}`} role="status" aria-live="polite">
+    {notice.tone === "success" ? <Check size={15} /> : <Clock size={15} />}
+    <span>{notice.message}</span>
+  </div>;
+}
+
+function Board({ issues, totalIssues, filters, hasFilters, username, onOpen, onRefresh, onResetFilters, onApplyFilters }: { issues: Issue[]; totalIssues: number; filters: IssueFilters; hasFilters: boolean; username: string; onOpen: (id: string) => void; onRefresh: () => Promise<void>; onResetFilters: () => void; onApplyFilters: (filters: IssueFilters) => void }) {
   const [draggingID, setDraggingID] = useState("");
   const [actionError, setActionError] = useState("");
+  const [collapsed, setCollapsed] = useState<Record<Status, boolean>>({
+    new: false,
+    in_progress: false,
+    completed: false,
+    canceled: false,
+  });
   async function moveIssue(issueID: string, status: Status) {
     const issue = issues.find((item) => item.id === issueID);
     if (!issue || issue.status === status) return;
@@ -382,9 +461,20 @@ function Board({ issues, totalIssues, hasFilters, username, onOpen, onRefresh, o
       setActionError(err instanceof Error ? err.message : "Unable to update issue status.");
     }
   }
+  function applyStateFilter(state: string) {
+    onApplyFilters({ ...emptyFilters(), state, sort: filters.sort, order: filters.order });
+  }
+  async function retryBoardRefresh() {
+    setActionError("");
+    try {
+      await onRefresh();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Unable to refresh board.");
+    }
+  }
   return (
     <div className="board">
-      {actionError && <div className="field-error"><AlertCircle size={15} />{actionError}</div>}
+      {actionError && <RequestError message={actionError} onRetry={retryBoardRefresh} onDismiss={() => setActionError("")} compact />}
       {issues.length === 0 && (
         totalIssues > 0 && hasFilters ? (
           <section className="empty-state board-empty"><h2>No matching issues</h2><p>Reset filters to return to the full triage board.</p><button className="button" onClick={onResetFilters}>Reset filters</button></section>
@@ -393,11 +483,14 @@ function Board({ issues, totalIssues, hasFilters, username, onOpen, onRefresh, o
         )
       )}
       <div className="board-stats">
-        <Stat label="Open" value={issues.filter((i) => i.status === "new" || i.status === "in_progress").length} />
-        <Stat label="Blocked" value={issues.filter((i) => i.blocked).length} tone="danger" />
-        <Stat label="Done" value={issues.filter((i) => i.status === "completed").length} tone="good" />
+        <Stat label="Open" value={issues.filter((i) => i.status === "new" || i.status === "in_progress").length} active={filters.state === "open"} onClick={() => applyStateFilter("open")} />
+        <Stat label="Blocked" value={issues.filter((i) => i.blocked).length} tone="danger" active={filters.state === "blocked"} onClick={() => applyStateFilter("blocked")} />
+        <Stat label="Done" value={issues.filter((i) => i.status === "completed").length} tone="good" active={filters.state === "done"} onClick={() => applyStateFilter("done")} />
       </div>
-      {statuses.map((status) => (
+      {statuses.map((status) => {
+        const statusIssues = issues.filter((issue) => issue.status === status);
+        const isCollapsed = collapsed[status];
+        return (
         <section key={status} className={`status-section ${draggingID ? "drop-enabled" : ""}`} onDragOver={(event) => {
           if (!draggingID) return;
           event.preventDefault();
@@ -408,9 +501,16 @@ function Board({ issues, totalIssues, hasFilters, username, onOpen, onRefresh, o
           setDraggingID("");
           await moveIssue(issueID, status);
         }}>
-          <h2>{statusLabel(status)} <span>{issues.filter((issue) => issue.status === status).length}</span></h2>
-          <div className="issue-list">
-            {issues.filter((issue) => issue.status === status).map((issue) => (
+          <div className="status-heading">
+            <h2>{statusLabel(status)} <span>{statusIssues.length}</span></h2>
+            <button className="icon-button small" onClick={() => setCollapsed((current) => ({ ...current, [status]: !current[status] }))} aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${statusLabel(status)}`} title={isCollapsed ? "Expand" : "Collapse"}>
+              {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+            </button>
+          </div>
+          {!isCollapsed && <div className="issue-list">
+            {statusIssues.length === 0 ? (
+              <EmptyState title={`No ${statusLabel(status).toLowerCase()} issues`} description="Drop issues here or change a card status to fill this lane." compact />
+            ) : statusIssues.map((issue) => (
               <IssueCard key={issue.id} issue={issue} dragging={draggingID === issue.id} onDragStart={(event) => {
                 setDraggingID(issue.id);
                 event.dataTransfer.effectAllowed = "move";
@@ -419,9 +519,10 @@ function Board({ issues, totalIssues, hasFilters, username, onOpen, onRefresh, o
                 await moveIssue(issue.id, next);
               }} />
             ))}
-          </div>
+          </div>}
         </section>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -433,11 +534,17 @@ function IssueCard({ issue, dragging, onDragStart, onDragEnd, onOpen, onStatus }
         <div className="card-title-row"><h3>{issue.title}</h3><span>{shortID(issue.id)}</span></div>
         <div className="meta-row">
           <Badge tone={issue.priority === "P0" || issue.priority === "P1" ? "danger" : "neutral"}>{issue.priority}</Badge>
+          <Badge tone={isResolved(issue) ? "good" : issue.blocked ? "danger" : "neutral"}>{statusLabel(issue.status)}</Badge>
           <Badge>{issue.assignee || "Unassigned"}</Badge>
           {issue.blocked && <Badge tone="danger">Blocked</Badge>}
         </div>
         <TagRow tags={issue.tags || []} limit={3} />
-        <div className="card-footer"><span><User size={14} />{issue.created_by}</span><span><GitBranch size={14} />{issue.child_count}</span><span><MessageSquare size={14} />{issue.comment_count}</span></div>
+        <div className="card-footer">
+          <span title={`Created by ${issue.created_by}`}><User size={14} />{issue.created_by}</span>
+          <span title={`Updated ${formatDateTime(issue.updated_at)}`}><Clock size={14} />{formatDateTime(issue.updated_at)}</span>
+          <span aria-label={`${issue.child_count} child issues`}><GitBranch size={14} />{issue.child_count}</span>
+          <span aria-label={`${issue.comment_count} comments`}><MessageSquare size={14} />{issue.comment_count}</span>
+        </div>
       </button>
       <select value={issue.status} onChange={(event) => onStatus(event.target.value as Status)} aria-label="Status">
         {statuses.map((status) => <option value={status} key={status}>{statusLabel(status)}</option>)}
@@ -446,7 +553,7 @@ function IssueCard({ issue, dragging, onDragStart, onDragEnd, onOpen, onStatus }
   );
 }
 
-function IssueDetail({ issue, username, issues, onOpenIssue, onRefresh, onTagsChanged, onClose }: { issue: Issue; username: string; issues: Issue[]; onOpenIssue: (id: string) => void; onRefresh: () => Promise<void>; onTagsChanged: () => Promise<void>; onClose: () => void }) {
+function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onRefresh, onTagsChanged, onClose }: { issue: Issue; username: string; issues: Issue[]; onOpenIssue: (id: string) => void; onApplyFilters: (filters: IssueFilters) => void; onRefresh: () => Promise<void>; onTagsChanged: () => Promise<void>; onClose: () => void }) {
   const [title, setTitle] = useState(issue.title);
   const [tagDraft, setTagDraft] = useState((issue.tags || []).map((tag) => tag.name).join(", "));
   const [assigneeDraft, setAssigneeDraft] = useState(issue.assignee || "");
@@ -460,6 +567,8 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onRefresh, onTagsCh
   const [blockerID, setBlockerID] = useState("");
   const [blockerQuery, setBlockerQuery] = useState("");
   const [actionError, setActionError] = useState("");
+  const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
+  const [commentLoadError, setCommentLoadError] = useState("");
   const [titleError, setTitleError] = useState("");
   const [parentError, setParentError] = useState("");
   const [blockerError, setBlockerError] = useState("");
@@ -480,33 +589,45 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onRefresh, onTagsCh
     setParentError("");
     setBlockerError("");
     setCommentError("");
+    setCommentLoadError("");
+    setActionNotice(null);
   }, [issue.id]);
+
+  async function loadComments() {
+    setCommentLoadError("");
+    try {
+      const res = await fetch(`/api/issues/${issue.id}/comments`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "Unable to load comments.");
+      setComments(data || []);
+    } catch (err) {
+      setCommentLoadError(err instanceof Error ? err.message : "Unable to load comments.");
+    }
+  }
+
   useEffect(() => {
-    fetch(`/api/issues/${issue.id}/comments`)
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error?.message || "Unable to load comments.");
-        setComments(data || []);
-      })
-      .catch((err) => setActionError(err instanceof Error ? err.message : "Unable to load comments."));
+    loadComments();
   }, [issue.id, issue.comment_count]);
 
-  async function patch(body: Record<string, unknown>) {
+  async function patch(body: Record<string, unknown>, feedback?: { pending: string; success: string }) {
     await runAction(async () => {
       await api(`/api/issues/${issue.id}`, { method: "PATCH", body, username });
       await onRefresh();
-    });
+    }, undefined, feedback);
   }
 
-  async function runAction(fn: () => Promise<void>, setInlineError?: (message: string) => void) {
+  async function runAction(fn: () => Promise<void>, setInlineError?: (message: string) => void, feedback: { pending: string; success: string } = { pending: "Saving changes...", success: "Changes saved." }) {
     if (actionBusy) return;
     setActionError("");
+    setActionNotice({ tone: "pending", message: feedback.pending });
     setInlineError?.("");
     setActionBusy(true);
     try {
       await fn();
+      setActionNotice({ tone: "success", message: feedback.success });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Request failed.";
+      setActionNotice(null);
       if (setInlineError) {
         setInlineError(message);
       } else {
@@ -535,136 +656,207 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onRefresh, onTagsCh
   const unresolvedBlockerCandidates = blockerCandidates.filter((candidate) => !isResolved(candidate));
   const resolvedBlockerCandidates = blockerCandidates.filter(isResolved);
   const currentParent = issue.parent_issue_id ? issues.find((candidate) => candidate.id === issue.parent_issue_id) : undefined;
+  const parentSelectionUnchanged = parentID === (issue.parent_issue_id || "");
+  const selectedParentPreserved = Boolean(parentQuery.trim() && parentID && parentCandidates.some((candidate) => candidate.id === parentID) && !matchesIssueSearch(parentCandidates.find((candidate) => candidate.id === parentID)!, parentQuery));
+  const blockerQueryHasMatches = blockerCandidates.length > 0;
+  function applyRelationshipFilter(partial: Partial<IssueFilters>) {
+    onApplyFilters({ ...emptyFilters(), ...partial });
+  }
 
   return (
     <div className="detail">
       {actionError && <div className="field-error"><AlertCircle size={15} />{actionError}</div>}
+      {actionNotice && <ActionStatus notice={actionNotice} />}
       <section className="detail-hero">
         <div className="card-title-row"><h2>{issue.title}</h2><span>{shortID(issue.id)}</span></div>
-        <label>Title</label>
-        <div className="inline-controls">
-          <input className={titleError ? "invalid" : ""} value={title} onChange={(e) => {
-            setTitle(e.target.value);
-            setTitleError("");
-          }} />
-          <button className="button" disabled={actionBusy} onClick={() => {
-            if (!title.trim()) {
-              setTitleError("Title is required.");
-              return;
-            }
-            patch({ title });
-          }}>Save</button>
-        </div>
-        {titleError && <div className="field-error inline-error"><AlertCircle size={15} />{titleError}</div>}
-        <div className="meta-row">
-          <select value={issue.status} disabled={actionBusy} onChange={(e) => patch({ status: e.target.value })}>{statuses.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select>
-          <select value={issue.priority} disabled={actionBusy} onChange={(e) => patch({ priority: e.target.value })}>{priorities.map((p) => <option key={p} value={p}>{p}</option>)}</select>
-          <Badge>Created by {issue.created_by}</Badge>
-        </div>
-        <label>Assignee</label>
-        <div className="inline-controls">
-          <input value={assigneeDraft} placeholder="Assignee" onChange={(e) => setAssigneeDraft(e.target.value)} />
-          <button className="button" disabled={actionBusy} onClick={() => patch({ assignee: optionalText(assigneeDraft) })}>Save assignee</button>
-        </div>
-        <label>Tags</label>
-        <div className="inline-controls">
-          <input value={tagDraft} onChange={(e) => setTagDraft(e.target.value)} placeholder="mcp, api" />
-          <button className="button" disabled={actionBusy} onClick={() => runAction(async () => {
-            await api(`/api/issues/${issue.id}`, { method: "PATCH", body: { tag_names: splitTags(tagDraft) }, username });
-            await Promise.all([onRefresh(), onTagsChanged()]);
-          })}>Save</button>
+        <div className="edit-stack">
+          <div className="edit-field">
+            <label>Title</label>
+            <div className="field-action-row">
+              <input className={titleError ? "invalid" : ""} value={title} onChange={(e) => {
+                setTitle(e.target.value);
+                setTitleError("");
+                setActionNotice(null);
+              }} />
+              <button className="button" disabled={actionBusy} onClick={() => {
+                if (!title.trim()) {
+                  setTitleError("Title is required.");
+                  return;
+                }
+                patch({ title }, { pending: "Saving title...", success: "Title saved." });
+              }}>Save</button>
+            </div>
+            {titleError && <div className="field-error inline-error"><AlertCircle size={15} />{titleError}</div>}
+          </div>
+          <div className="meta-row detail-meta-row">
+            <select value={issue.status} disabled={actionBusy} onChange={(e) => patch({ status: e.target.value }, { pending: "Saving status...", success: "Status saved." })}>{statuses.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select>
+            <select value={issue.priority} disabled={actionBusy} onChange={(e) => patch({ priority: e.target.value }, { pending: "Saving priority...", success: "Priority saved." })}>{priorities.map((p) => <option key={p} value={p}>{p}</option>)}</select>
+            <Badge>Created by {issue.created_by}</Badge>
+          </div>
+          <div className="edit-field">
+            <label>Assignee</label>
+            <div className="field-action-row">
+              <input value={assigneeDraft} placeholder="Assignee" onChange={(e) => {
+                setAssigneeDraft(e.target.value);
+                setActionNotice(null);
+              }} />
+              <button className="button" disabled={actionBusy} onClick={() => patch({ assignee: optionalText(assigneeDraft) }, { pending: "Saving assignee...", success: "Assignee saved." })}>Save assignee</button>
+            </div>
+          </div>
+          <div className="edit-field">
+            <label>Tags</label>
+            <div className="field-action-row">
+              <input value={tagDraft} onChange={(e) => {
+                setTagDraft(e.target.value);
+                setActionNotice(null);
+              }} placeholder="mcp, api" />
+              <button className="button" disabled={actionBusy} onClick={() => runAction(async () => {
+                await api(`/api/issues/${issue.id}`, { method: "PATCH", body: { tag_names: splitTags(tagDraft) }, username });
+                await Promise.all([onRefresh(), onTagsChanged()]);
+              }, undefined, { pending: "Saving tags...", success: "Tags saved." })}>Save</button>
+            </div>
+          </div>
         </div>
       </section>
 
       <section className="panel">
         <div className="section-title"><h3>Description</h3><Segment value={tab} onChange={setTab} /></div>
-        {tab === "source" ? <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={7} /> : <Markdown text={draft || "_No description yet._"} />}
-        <button className="button" disabled={actionBusy} onClick={() => patch({ description_markdown: draft })}>Save description</button>
+        {tab === "source" ? (
+          <textarea className="editor-surface" value={draft} onChange={(e) => {
+            setDraft(e.target.value);
+            setActionNotice(null);
+          }} rows={7} />
+        ) : (
+          <div className="comment-preview editor-preview"><Markdown text={draft || "_No description yet._"} /></div>
+        )}
+        <div className="detail-actions">
+          <button className="button" disabled={actionBusy} onClick={() => patch({ description_markdown: draft }, { pending: "Saving description...", success: "Description saved." })}>Save description</button>
+        </div>
       </section>
 
       <section className="panel">
-        <div className="section-title"><h3>Relationships</h3><Link2 size={18} /></div>
+        <div className="section-title">
+          <h3>Relationships</h3>
+          <div className="section-actions">
+            <button className="icon-button small" disabled={actionBusy} onClick={() => runAction(onRefresh, undefined, { pending: "Refreshing relationship context...", success: "Relationship context refreshed." })} aria-label="Refresh relationship context" title="Refresh relationship context"><RefreshCw size={15} /></button>
+            <Link2 size={18} />
+          </div>
+        </div>
         <div className="relationship-grid">
-          <div><strong>{issue.children?.length || 0}</strong><span>Children</span></div>
-          <div><strong>{issue.blockers?.length || 0}</strong><span>Blockers</span></div>
-          <div><strong>{issue.blocked_by?.length || 0}</strong><span>Blocked by this</span></div>
+          <button type="button" disabled={!issue.parent_issue_id} onClick={() => issue.parent_issue_id && applyRelationshipFilter({ id: issue.parent_issue_id })}><strong>{issue.parent_issue_id ? 1 : 0}</strong><span>Parent</span></button>
+          <button type="button" disabled={(issue.children?.length || 0) === 0} onClick={() => applyRelationshipFilter({ parent_id: issue.id })}><strong>{issue.children?.length || 0}</strong><span>Children</span></button>
+          <button type="button" disabled={(issue.blockers?.length || 0) === 0} onClick={() => applyRelationshipFilter({ blocker_of: issue.id })}><strong>{issue.blockers?.length || 0}</strong><span>Blockers</span></button>
+          <button type="button" disabled={(issue.blocked_by?.length || 0) === 0} onClick={() => applyRelationshipFilter({ blocked_by: issue.id })}><strong>{issue.blocked_by?.length || 0}</strong><span>Blocked by this</span></button>
         </div>
 
-        <label>Parent issue</label>
-        <div className="relationship-control">
-          <input value={parentQuery} onChange={(e) => setParentQuery(e.target.value)} placeholder="Search parent issues..." aria-label="Search parent issues" />
+        <div className="edit-field">
+          <label>Parent issue</label>
+          <div className="relationship-control">
+            <input value={parentQuery} onChange={(e) => setParentQuery(e.target.value)} placeholder="Search parent issues..." aria-label="Search parent issues" />
+            <PickerFeedback
+              visibleCount={parentCandidates.length}
+              totalCount={validParentCandidates.length}
+              query={parentQuery}
+              emptyLabel="No parent candidates match this search."
+              preservedLabel={selectedParentPreserved ? "Selected parent stays available while filtering." : undefined}
+            />
+          </div>
+          <div className="field-action-row">
+            <select value={parentID} onChange={(e) => {
+              setParentID(e.target.value);
+              setActionNotice(null);
+            }}>
+              <option value="">No parent</option>
+              {parentCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{issueOptionLabel(candidate)}</option>)}
+            </select>
+            <button className="button" disabled={actionBusy || parentSelectionUnchanged} onClick={() => runAction(async () => {
+              await api(`/api/issues/${issue.id}/parent`, { method: "PUT", body: { parent_issue_id: parentID || null }, username });
+              await onRefresh();
+            }, setParentError, { pending: "Updating parent...", success: "Parent updated." })}>Set</button>
+          </div>
+          {parentError && <div className="field-error inline-error"><AlertCircle size={15} />{parentError}</div>}
         </div>
-        <div className="inline-controls">
-          <select value={parentID} onChange={(e) => setParentID(e.target.value)}>
-            <option value="">No parent</option>
-            {parentCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{issueOptionLabel(candidate)}</option>)}
-          </select>
-          <button className="button" disabled={actionBusy} onClick={() => runAction(async () => {
-            await api(`/api/issues/${issue.id}/parent`, { method: "PUT", body: { parent_issue_id: parentID || null }, username });
-            await onRefresh();
-          }, setParentError)}>Set</button>
-        </div>
-        {parentError && <div className="field-error inline-error"><AlertCircle size={15} />{parentError}</div>}
 
         <RelationshipList title="Parent" issues={currentParent ? [currentParent] : []} onOpen={onOpenIssue} />
         <RelationshipList title="Children" issues={issue.children || []} onOpen={onOpenIssue} />
         <BlockerRelationshipList issues={issue.blockers || []} onRemove={(blocker) => runAction(async () => {
           await api(`/api/issues/${issue.id}/blockers/${blocker.id}`, { method: "DELETE", username });
           await onRefresh();
-        }, setBlockerError)} onOpen={onOpenIssue} />
+        }, setBlockerError, { pending: "Removing blocker...", success: "Blocker removed." })} onOpen={onOpenIssue} />
         <RelationshipList title="Blocking" issues={issue.blocked_by || []} onOpen={onOpenIssue} />
 
-        <label>Add blocker</label>
-        <div className="relationship-control">
-          <input value={blockerQuery} onChange={(e) => setBlockerQuery(e.target.value)} placeholder="Search blocker issues..." aria-label="Search blocker issues" />
+        <div className="edit-field">
+          <label>Add blocker</label>
+          <div className="relationship-control">
+            <input value={blockerQuery} onChange={(e) => setBlockerQuery(e.target.value)} placeholder="Search blocker issues..." aria-label="Search blocker issues" />
+            <PickerFeedback
+              visibleCount={blockerCandidates.length}
+              totalCount={validBlockerCandidates.length}
+              query={blockerQuery}
+              emptyLabel="No blocker candidates match this search."
+            />
+          </div>
+          <select ref={blockerSelectRef} value={blockerID} onChange={(e) => {
+            setBlockerID(e.target.value);
+            setActionNotice(null);
+          }}>
+            <option value="">Select blocker issue</option>
+            <optgroup label={`Unresolved blockers (${unresolvedBlockerCandidates.length})`}>
+              {unresolvedBlockerCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{issueOptionLabel(candidate)}</option>)}
+            </optgroup>
+            <optgroup label={`Completed or canceled (${resolvedBlockerCandidates.length})`}>
+              {resolvedBlockerCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{issueOptionLabel(candidate)}</option>)}
+            </optgroup>
+          </select>
+          <div className="detail-actions">
+            <button className="button" disabled={actionBusy || !blockerID || !blockerQueryHasMatches} onClick={() => runAction(async () => {
+              const selectedBlockerID = blockerSelectRef.current?.value || blockerID;
+              if (!selectedBlockerID) return;
+              await api(`/api/issues/${issue.id}/blockers`, { method: "POST", body: { blocker_issue_id: selectedBlockerID }, username });
+              setBlockerID("");
+              setBlockerQuery("");
+              if (blockerSelectRef.current) blockerSelectRef.current.value = "";
+              await onRefresh();
+            }, setBlockerError, { pending: "Adding blocker...", success: "Blocker added." })}>Add blocker</button>
+          </div>
+          {blockerError && <div className="field-error inline-error"><AlertCircle size={15} />{blockerError}</div>}
         </div>
-        <select ref={blockerSelectRef} value={blockerID} onChange={(e) => setBlockerID(e.target.value)}>
-          <option value="">Select blocker issue</option>
-          <optgroup label="Unresolved blockers">
-            {unresolvedBlockerCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{issueOptionLabel(candidate)}</option>)}
-          </optgroup>
-          <optgroup label="Completed or canceled">
-            {resolvedBlockerCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{issueOptionLabel(candidate)}</option>)}
-          </optgroup>
-        </select>
-        <button className="button" disabled={actionBusy} onClick={() => runAction(async () => {
-          const selectedBlockerID = blockerSelectRef.current?.value || blockerID;
-          if (!selectedBlockerID) return;
-          await api(`/api/issues/${issue.id}/blockers`, { method: "POST", body: { blocker_issue_id: selectedBlockerID }, username });
-          setBlockerID("");
-          setBlockerQuery("");
-          if (blockerSelectRef.current) blockerSelectRef.current.value = "";
-          await onRefresh();
-        }, setBlockerError)}>Add blocker</button>
-        {blockerError && <div className="field-error inline-error"><AlertCircle size={15} />{blockerError}</div>}
       </section>
 
       <section className="panel">
         <div className="section-title"><h3>Comments</h3><span>{issue.comment_count}</span></div>
-        <div className="comments">{comments.map((item) => <CommentView key={item.id} comment={item} />)}</div>
+        {commentLoadError && <RequestError message={commentLoadError} onRetry={loadComments} onDismiss={() => setCommentLoadError("")} compact />}
+        <div className="comments">
+          {comments.length === 0 ? (
+            <EmptyState title="No comments yet" description="Add the first update or decision for this issue." compact />
+          ) : comments.map((item) => <CommentView key={item.id} comment={item} />)}
+        </div>
         <div className="section-title compact-title"><h3>Add comment</h3><Segment value={commentTab} onChange={setCommentTab} /></div>
         {commentTab === "source" ? (
-          <textarea value={comment} onChange={(e) => {
+          <textarea className="editor-surface" value={comment} onChange={(e) => {
             setComment(e.target.value);
             setCommentError("");
+            setActionNotice(null);
           }} placeholder="Add a Markdown comment..." rows={4} />
         ) : (
           <div className="comment-preview"><Markdown text={comment || "_No comment yet._"} /></div>
         )}
         {commentError && <div className="field-error inline-error"><AlertCircle size={15} />{commentError}</div>}
-        <button className="button primary" disabled={actionBusy} onClick={() => {
-          if (!comment.trim()) {
-            setCommentError("Comment body is required.");
-            return;
-          }
-          runAction(async () => {
-          await api(`/api/issues/${issue.id}/comments`, { method: "POST", body: { body_markdown: comment }, username });
-          setComment("");
-          setCommentTab("source");
-          setCommentError("");
-          await onRefresh();
-          }, setCommentError);
-        }}><Send size={16} />{actionBusy ? "Saving..." : "Add comment"}</button>
+        <div className="detail-actions">
+          <button className="button primary" disabled={actionBusy} onClick={() => {
+            if (!comment.trim()) {
+              setCommentError("Comment body is required.");
+              return;
+            }
+            runAction(async () => {
+              await api(`/api/issues/${issue.id}/comments`, { method: "POST", body: { body_markdown: comment }, username });
+              setComment("");
+              setCommentTab("source");
+              setCommentError("");
+              await onRefresh();
+            }, setCommentError, { pending: "Posting comment...", success: "Comment added." });
+          }}><Send size={16} />{actionBusy ? "Saving..." : "Add comment"}</button>
+        </div>
       </section>
 
       <button className="button ghost" onClick={onClose}>Back to board</button>
@@ -672,20 +864,34 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onRefresh, onTagsCh
   );
 }
 
+function PickerFeedback({ visibleCount, totalCount, query, emptyLabel, preservedLabel }: { visibleCount: number; totalCount: number; query: string; emptyLabel: string; preservedLabel?: string }) {
+  const hasQuery = Boolean(query.trim());
+  const label = hasQuery
+    ? visibleCount === 0
+      ? emptyLabel
+      : `Showing ${visibleCount} of ${totalCount} candidates.`
+    : `${totalCount} candidates available.`;
+  return <div className={`picker-feedback ${visibleCount === 0 ? "empty" : ""}`}>
+    <span>{label}</span>
+    {preservedLabel && <span>{preservedLabel}</span>}
+  </div>;
+}
+
 function RelationshipList({ title, issues, onRemove, onOpen }: { title: string; issues: Issue[]; onRemove?: (issue: Issue) => void; onOpen?: (id: string) => void }) {
-  if (issues.length === 0) return null;
   return <div className="relationship-list">
     <h4>{title}</h4>
-    {issues.map((issue) => <RelationshipItem key={issue.id} issue={issue} onRemove={onRemove} onOpen={onOpen} />)}
+    {issues.length === 0 ? (
+      <EmptyState title={`No ${title.toLowerCase()}`} description="No linked issues in this group." compact />
+    ) : issues.map((issue) => <RelationshipItem key={issue.id} issue={issue} onRemove={onRemove} onOpen={onOpen} />)}
   </div>;
 }
 
 function BlockerRelationshipList({ issues, onRemove, onOpen }: { issues: Issue[]; onRemove: (issue: Issue) => void; onOpen?: (id: string) => void }) {
-  if (issues.length === 0) return null;
   const unresolved = issues.filter((issue) => !isResolved(issue));
   const resolved = issues.filter(isResolved);
   return <div className="relationship-list">
     <h4>Blocked by</h4>
+    {issues.length === 0 && <EmptyState title="No blockers" description="This issue has no dependency blockers." compact />}
     {unresolved.length > 0 && <div className="relationship-group">
       <span>Unresolved blockers</span>
       {unresolved.map((issue) => <RelationshipItem key={issue.id} issue={issue} onRemove={onRemove} onOpen={onOpen} />)}
@@ -844,6 +1050,7 @@ function Profile({ username, onLogout, onTagsChanged }: { username: string; onLo
   const [color, setColor] = useState("#b5f4d8");
   const [error, setError] = useState("");
   const [nameError, setNameError] = useState("");
+  const [colorError, setColorError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function refreshTags() {
@@ -851,8 +1058,20 @@ function Profile({ username, onLogout, onTagsChanged }: { username: string; onLo
     setTags(next);
   }
 
+  async function reloadTags() {
+    setError("");
+    setBusy(true);
+    try {
+      await Promise.all([refreshTags(), onTagsChanged()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load tags.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
-    refreshTags().catch((err) => setError(err instanceof Error ? err.message : "Unable to load tags."));
+    reloadTags();
   }, []);
 
   async function runTagAction(fn: () => Promise<void>) {
@@ -873,27 +1092,39 @@ function Profile({ username, onLogout, onTagsChanged }: { username: string; onLo
     <section className="panel profile"><User size={28} /><h2>{username}</h2><p>Used for REST mutations and comments on this local Tala instance.</p><button className="button" onClick={onLogout}>Change username</button></section>
     <section className="panel tag-admin">
       <div className="section-title"><h3>Tags</h3><span>{tags.length}</span></div>
-      {error && <div className="field-error"><AlertCircle size={15} />{error}</div>}
+      {error && <RequestError message={error} onRetry={reloadTags} onDismiss={() => setError("")} compact />}
       <div className="inline-controls">
         <input className={nameError ? "invalid" : ""} value={name} onChange={(e) => {
           setName(e.target.value);
           setNameError("");
           setError("");
         }} placeholder="Tag name" />
-        <ColorControl value={color} disabled={busy} onChange={setColor} ariaLabel="Tag color" />
+        <ColorControl value={color} disabled={busy} invalid={Boolean(colorError)} onChange={(value) => {
+          setColor(value);
+          setColorError("");
+          setError("");
+        }} ariaLabel="Tag color" />
       </div>
       {nameError && <div className="field-error"><AlertCircle size={15} />{nameError}</div>}
+      {colorError && <div className="field-error"><AlertCircle size={15} />{colorError}</div>}
       <button className="button primary" disabled={busy} onClick={() => runTagAction(async () => {
         const tagName = name.trim();
+        const tagColor = color.trim();
         if (!tagName) {
           setNameError("Tag name is required.");
           return;
         }
-        await api("/api/tags", { method: "POST", username, body: { name: tagName, color: color || null } });
+        if (!isValidTagColor(tagColor)) {
+          setColorError("Use a color token or hex value like #b5f4d8.");
+          return;
+        }
+        await api("/api/tags", { method: "POST", username, body: { name: tagName, color: tagColor || null } });
         setName("");
       })}>{busy ? "Creating..." : "Create tag"}</button>
       <div className="tag-list">
-        {tags.map((tag) => <TagEditor key={tag.id} tag={tag} username={username} onSaved={async () => {
+        {tags.length === 0 && !busy ? (
+          <EmptyState title="No tags yet" description="Create a tag to reuse it on issue cards and filters." compact />
+        ) : tags.map((tag) => <TagEditor key={tag.id} tag={tag} username={username} onSaved={async () => {
           await Promise.all([refreshTags(), onTagsChanged()]);
         }} onError={setError} />)}
       </div>
@@ -905,26 +1136,34 @@ function TagEditor({ tag, username, onSaved, onError }: { tag: Tag; username: st
   const [name, setName] = useState(tag.name);
   const [color, setColor] = useState(tag.color || "");
   const [nameError, setNameError] = useState("");
+  const [colorError, setColorError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setName(tag.name);
     setColor(tag.color || "");
     setNameError("");
+    setColorError("");
   }, [tag.id, tag.name, tag.color]);
 
   async function save(nextColor: string | null = color || null) {
     if (busy) return;
     const cleanName = name.trim();
+    const cleanColor = nextColor?.trim() || "";
     if (!cleanName) {
       setNameError("Tag name is required.");
       return;
     }
+    if (!isValidTagColor(cleanColor)) {
+      setColorError("Use a color token or hex value like #b5f4d8.");
+      return;
+    }
     onError("");
     setNameError("");
+    setColorError("");
     setBusy(true);
     try {
-      await api(`/api/tags/${tag.id}`, { method: "PATCH", username, body: { name: cleanName, color: nextColor } });
+      await api(`/api/tags/${tag.id}`, { method: "PATCH", username, body: { name: cleanName, color: cleanColor || null } });
       await onSaved();
     } catch (err) {
       onError(err instanceof Error ? err.message : "Unable to save tag.");
@@ -941,7 +1180,12 @@ function TagEditor({ tag, username, onSaved, onError }: { tag: Tag; username: st
       onError("");
     }} aria-label={`Name for ${tag.name}`} />
     {nameError && <div className="field-error"><AlertCircle size={15} />{nameError}</div>}
-    <ColorControl value={color} disabled={busy} onChange={setColor} ariaLabel={`Color for ${tag.name}`} />
+    <ColorControl value={color} disabled={busy} invalid={Boolean(colorError)} onChange={(value) => {
+      setColor(value);
+      setColorError("");
+      onError("");
+    }} ariaLabel={`Color for ${tag.name}`} />
+    {colorError && <div className="field-error"><AlertCircle size={15} />{colorError}</div>}
     <div className="tag-actions">
       <button className="button" disabled={busy} onClick={() => save()}>{busy ? "Saving..." : "Save"}</button>
       <button className="button ghost" onClick={() => {
@@ -952,9 +1196,9 @@ function TagEditor({ tag, username, onSaved, onError }: { tag: Tag; username: st
   </div>;
 }
 
-function ColorControl({ value, disabled, onChange, ariaLabel }: { value: string; disabled: boolean; onChange: (value: string) => void; ariaLabel: string }) {
+function ColorControl({ value, disabled, invalid = false, onChange, ariaLabel }: { value: string; disabled: boolean; invalid?: boolean; onChange: (value: string) => void; ariaLabel: string }) {
   return <div className="color-control">
-    <input className="color-input" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} aria-label={ariaLabel} />
+    <input className={`color-input ${invalid ? "invalid" : ""}`} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} aria-label={ariaLabel} />
     <div className="color-swatches" aria-label={`${ariaLabel} swatches`}>
       {tagColorChoices.map((token) => (
         <button
@@ -972,20 +1216,49 @@ function ColorControl({ value, disabled, onChange, ariaLabel }: { value: string;
   </div>;
 }
 
-function FilterSheet({ filters, tags, issues, setFilters, onClose }: { filters: Record<string, string>; tags: Tag[]; issues: Issue[]; setFilters: (v: any) => void; onClose: () => void }) {
+function FilterSheet({ filters, tags, issues, onApplyFilters, onClose }: { filters: IssueFilters; tags: Tag[]; issues: Issue[]; onApplyFilters: (filters: IssueFilters) => void; onClose: () => void }) {
   const [local, setLocal] = useState(filters);
+  const activeCount = filterKeys.filter((key) => Boolean(local[key])).length;
+  const relationshipCount = [local.parent_id, local.blocked_by, local.blocker_of, local.id].filter(Boolean).length;
+  const clearLocalFilters = () => setLocal(emptyFilters());
+
   return <Sheet title="Filters" onClose={onClose}>
-    <label>Search</label><input value={local.q} onChange={(e) => setLocal({ ...local, q: e.target.value })} placeholder="Markdown, title, or keyword" />
-    <label>Status</label><select value={local.status || ""} onChange={(e) => setLocal({ ...local, status: e.target.value })}><option value="">Any</option>{statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select>
-    <label>Assignee</label><input value={local.assignee} onChange={(e) => setLocal({ ...local, assignee: e.target.value })} placeholder="alex" />
-    <label>Priority</label><select value={local.priority} onChange={(e) => setLocal({ ...local, priority: e.target.value })}><option value="">Any</option>{priorities.map((p) => <option key={p}>{p}</option>)}</select>
-    <label>Tag</label><select value={local.tag} onChange={(e) => setLocal({ ...local, tag: e.target.value })}><option value="">Any</option>{tags.map((tag) => <option key={tag.id} value={tag.name}>{tag.name}</option>)}</select>
-    {tags.length > 0 && <div className="filter-tags">
-      {tags.map((tag) => <button key={tag.id} type="button" aria-label={`Filter by tag ${tag.name}`} className={`tag ${local.tag === tag.name ? "selected" : ""}`} style={tagStyle(tag)} onClick={() => setLocal({ ...local, tag: local.tag === tag.name ? "" : tag.name })}>{tag.name}</button>)}
-    </div>}
-    <label>Parent</label><select value={local.parent_id} onChange={(e) => setLocal({ ...local, parent_id: e.target.value })}><option value="">Any</option>{issues.map((issue) => <option key={issue.id} value={issue.id}>{issueOptionLabel(issue)}</option>)}</select>
-    <label>Blocked by</label><select value={local.blocked_by} onChange={(e) => setLocal({ ...local, blocked_by: e.target.value })}><option value="">Any</option>{issues.map((issue) => <option key={issue.id} value={issue.id}>{issueOptionLabel(issue)}</option>)}</select>
-    <div className="sheet-actions"><button className="button" onClick={() => { setFilters(emptyFilters()); onClose(); }}>Reset</button><button className="button primary" onClick={() => { setFilters(local); onClose(); }}>Apply</button></div>
+    <div className="filter-summary">
+      <div>
+        <strong>{activeCount === 0 ? "No filters active" : `${activeCount} active ${activeCount === 1 ? "filter" : "filters"}`}</strong>
+        <span>{issues.length} issues available for relationship filters</span>
+      </div>
+      {activeCount > 0 && <button type="button" className="button ghost compact" onClick={clearLocalFilters}>Clear</button>}
+    </div>
+    <section className="filter-section">
+      <h3>Find</h3>
+      <label>Search</label><input value={local.q} onChange={(e) => setLocal({ ...local, q: e.target.value })} placeholder="Markdown, title, or keyword" />
+      <label>Assignee</label><input value={local.assignee} onChange={(e) => setLocal({ ...local, assignee: e.target.value })} placeholder="alex" />
+      <label>Tag</label><select value={local.tag} onChange={(e) => setLocal({ ...local, tag: e.target.value })}><option value="">Any</option>{tags.map((tag) => <option key={tag.id} value={tag.name}>{tag.name}</option>)}</select>
+      {tags.length > 0 && <div className="filter-tags">
+        {tags.map((tag) => <button key={tag.id} type="button" aria-label={`Filter by tag ${tag.name}`} className={`tag ${local.tag === tag.name ? "selected" : ""}`} style={tagStyle(tag)} onClick={() => setLocal({ ...local, tag: local.tag === tag.name ? "" : tag.name })}>{tag.name}</button>)}
+      </div>}
+    </section>
+    <section className="filter-section">
+      <h3>State</h3>
+      <label>State</label><select value={local.state} onChange={(e) => setLocal({ ...local, state: e.target.value })}><option value="">Any</option>{states.map((state) => <option key={state} value={state}>{state}</option>)}</select>
+      <label>Status</label><select value={local.status || ""} onChange={(e) => setLocal({ ...local, status: e.target.value })}><option value="">Any</option>{statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select>
+      <label>Priority</label><select value={local.priority} onChange={(e) => setLocal({ ...local, priority: e.target.value })}><option value="">Any</option>{priorities.map((p) => <option key={p}>{p}</option>)}</select>
+    </section>
+    <section className="filter-section">
+      <h3>Relationships</h3>
+      <div className="filter-section-meta">{relationshipCount === 0 ? "Any relationship" : `${relationshipCount} active relationship ${relationshipCount === 1 ? "filter" : "filters"}`}</div>
+      <label>Parent</label><select value={local.parent_id} onChange={(e) => setLocal({ ...local, parent_id: e.target.value })}><option value="">Any</option>{issues.map((issue) => <option key={issue.id} value={issue.id}>{issueOptionLabel(issue)}</option>)}</select>
+      <label>Blocked by</label><select value={local.blocked_by} onChange={(e) => setLocal({ ...local, blocked_by: e.target.value })}><option value="">Any</option>{issues.map((issue) => <option key={issue.id} value={issue.id}>{issueOptionLabel(issue)}</option>)}</select>
+      <label>Blocker of</label><select value={local.blocker_of} onChange={(e) => setLocal({ ...local, blocker_of: e.target.value })}><option value="">Any</option>{issues.map((issue) => <option key={issue.id} value={issue.id}>{issueOptionLabel(issue)}</option>)}</select>
+      <label>Exact issue</label><select value={local.id} onChange={(e) => setLocal({ ...local, id: e.target.value })}><option value="">Any</option>{issues.map((issue) => <option key={issue.id} value={issue.id}>{issueOptionLabel(issue)}</option>)}</select>
+    </section>
+    <section className="filter-section">
+      <h3>Sort</h3>
+      <label>Sort by</label><select value={local.sort} onChange={(e) => setLocal({ ...local, sort: e.target.value })}>{sortOptions.map((option) => <option key={option.value || "default"} value={option.value}>{option.label}</option>)}</select>
+      <label>Sort order</label><select value={local.order} onChange={(e) => setLocal({ ...local, order: e.target.value })}><option value="">Default</option><option value="asc">Ascending</option><option value="desc">Descending</option></select>
+    </section>
+    <div className="sheet-actions"><button className="button" onClick={() => { onApplyFilters(emptyFilters()); onClose(); }}>Reset</button><button className="button primary" onClick={() => { onApplyFilters(local); onClose(); }}>Apply</button></div>
   </Sheet>;
 }
 
@@ -1000,6 +1273,7 @@ function CreateSheet({ username, issues, onClose, onCreated }: { username: strin
   const [tags, setTags] = useState("");
   const [titleError, setTitleError] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [submitNotice, setSubmitNotice] = useState<ActionNotice | null>(null);
   const [creating, setCreating] = useState(false);
   const parentCandidates = includeSelectedIssue(
     issues.filter((issue) => matchesIssueSearch(issue, parentQuery)),
@@ -1011,6 +1285,7 @@ function CreateSheet({ username, issues, onClose, onCreated }: { username: strin
       setTitle(e.target.value);
       setTitleError("");
       setSubmitError("");
+      setSubmitNotice(null);
     }} placeholder="Issue title" />
     {titleError && <div className="field-error"><AlertCircle size={15} />{titleError}</div>}
     <div className="section-title compact-title"><label>Description Markdown</label><Segment value={descriptionTab} onChange={setDescriptionTab} /></div>
@@ -1031,15 +1306,20 @@ function CreateSheet({ username, issues, onClose, onCreated }: { username: strin
     </select>
     <label>Tags</label><input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="mcp, api" />
     {submitError && <div className="field-error"><AlertCircle size={15} />{submitError}</div>}
+    {submitNotice && <ActionStatus notice={submitNotice} />}
     <button className="button primary" disabled={creating} onClick={async () => {
       setTitleError("");
       setSubmitError("");
+      setSubmitNotice(null);
       if (!title.trim()) return setTitleError("Title is required.");
       setCreating(true);
+      setSubmitNotice({ tone: "pending", message: "Creating issue..." });
       try {
         const issue = await api("/api/issues", { method: "POST", username, body: { title, description_markdown: description, priority, assignee: optionalText(assignee), parent_issue_id: parentID || null, tag_names: splitTags(tags) } });
+        setSubmitNotice({ tone: "success", message: "Issue created." });
         onCreated(issue);
       } catch (err) {
+        setSubmitNotice(null);
         setSubmitError(err instanceof Error ? err.message : "Unable to create issue.");
       } finally {
         setCreating(false);
@@ -1050,6 +1330,13 @@ function CreateSheet({ username, issues, onClose, onCreated }: { username: strin
 
 function Sheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return <div className="sheet-backdrop"><section className="sheet"><div className="sheet-header"><h2>{title}</h2><button className="icon-button" aria-label="Close" onClick={onClose}><X size={20} /></button></div>{children}</section></div>;
+}
+
+function EmptyState({ title, description, compact = false }: { title: string; description: string; compact?: boolean }) {
+  return <section className={`empty-state ${compact ? "compact" : ""}`}>
+    <h2>{title}</h2>
+    <p>{description}</p>
+  </section>;
 }
 
 function CommentView({ comment }: { comment: Comment }) {
@@ -1094,8 +1381,12 @@ function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone
   return <span className={`badge ${tone}`}>{children}</span>;
 }
 
-function Stat({ label, value, tone = "neutral" }: { label: string; value: number; tone?: "neutral" | "danger" | "good" }) {
-  return <div className={`stat ${tone}`}><strong>{value}</strong><span>{label}</span></div>;
+function Stat({ label, value, tone = "neutral", active = false, onClick }: { label: string; value: number; tone?: "neutral" | "danger" | "good"; active?: boolean; onClick?: () => void }) {
+  const content = <><strong>{value}</strong><span>{label}</span></>;
+  if (onClick) {
+    return <button className={`stat stat-button ${tone} ${active ? "active" : ""}`} onClick={onClick}>{content}</button>;
+  }
+  return <div className={`stat ${tone}`}>{content}</div>;
 }
 
 async function api(path: string, options: { method?: string; body?: unknown; username?: string } = {}) {
@@ -1127,7 +1418,16 @@ function viewTitle(view: View) {
 }
 
 function emptyFilters() {
-  return { q: "", status: "", assignee: "", priority: "", tag: "", parent_id: "", blocked_by: "" };
+  return { q: "", status: "", assignee: "", priority: "", tag: "", id: "", parent_id: "", blocked_by: "", blocker_of: "", state: "", sort: "", order: "" };
+}
+
+function filtersFromLocation(): IssueFilters {
+  const params = new URLSearchParams(window.location.search);
+  const filters = emptyFilters();
+  filterKeys.forEach((key) => {
+    filters[key] = params.get(key) || "";
+  });
+  return filters;
 }
 
 function issueIDFromLocation() {
@@ -1161,7 +1461,19 @@ function viewPath(view: View) {
   return view === "board" ? "/" : `/${view}`;
 }
 
-function hasActiveFilters(filters: Record<string, string>) {
+function pathWithFilters(view: View, filters: IssueFilters) {
+  const path = viewPath(view);
+  if (view !== "board") return path;
+  const params = new URLSearchParams();
+  filterKeys.forEach((key) => {
+    const value = filters[key];
+    if (value) params.set(key, value);
+  });
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
+function hasActiveFilters(filters: IssueFilters) {
   return Object.values(filters).some(Boolean);
 }
 
@@ -1171,6 +1483,10 @@ function statusLabel(status: Status) {
 
 function shortID(id: string) {
   return "#" + id.replace(/^issue_/, "").slice(0, 4);
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 function splitTags(value: string) {
@@ -1221,6 +1537,11 @@ function tagStyle(tag: Tag): React.CSSProperties | undefined {
   const background = tagColorTokens[tag.color] || tag.color;
   const foreground = readableTextColor(background);
   return { backgroundColor: background, color: foreground };
+}
+
+function isValidTagColor(color: string) {
+  if (!color) return true;
+  return Boolean(tagColorTokens[color] || normalizedHexColor(color));
 }
 
 function readableTextColor(color: string) {
