@@ -47,10 +47,7 @@ make browser-smoke SMOKE_URL=http://127.0.0.1:8081 TALA_SMOKE_DB=/tmp/tala-v1-ca
 Verify the production binary serves the embedded app:
 
 ```sh
-go build ./cmd/tala
-./tala -addr 127.0.0.1:8081 -db /tmp/tala-v1-binary.db
-curl -fsS http://127.0.0.1:8081/healthz
-curl -fsS http://127.0.0.1:8081/ | grep -q '/assets/index-'
+make verify-production-binary
 ```
 
 ## Backlog Gate

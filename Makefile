@@ -1,4 +1,4 @@
-.PHONY: browser-smoke build dev frontend-build frontend-typecheck own-db smoke test
+.PHONY: browser-smoke build dev frontend-build frontend-typecheck own-db smoke test verify-production-binary
 
 GO_ADDR ?= 127.0.0.1:8081
 DB ?= .tala/tala.db
@@ -26,6 +26,9 @@ test:
 build:
 	bun run build
 	go build ./cmd/tala
+
+verify-production-binary:
+	scripts/verify-production-binary.sh
 
 smoke:
 	scripts/smoke.sh $(SMOKE_URL)

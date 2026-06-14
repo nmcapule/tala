@@ -99,6 +99,12 @@ Build production frontend assets and the Go binary:
 make build
 ```
 
+Verify the production binary serves the embedded frontend assets:
+
+```sh
+make verify-production-binary
+```
+
 Run a smoke check against a running server:
 
 ```sh
