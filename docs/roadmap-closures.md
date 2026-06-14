@@ -113,3 +113,34 @@ Verification evidence:
 - `bun run typecheck`
 - `bun run build`
 - `scripts/smoke.sh` and `scripts/browser-smoke.sh` coverage referenced by completed child issues
+
+## Roadmap: v1 release readiness
+
+Tala issue: `issue_51784eee-927f-4a97-a3e4-8d77fb832138`
+
+Closed: 2026-06-14
+
+Closure evidence:
+
+- Release criteria, commands, known risks, and rollback guidance are documented in `docs/v1-release-checklist.md`.
+- The design audit confirms the implemented behavior matches the v1 design at the P0/P1 level, with non-blocking drift filed as lower-priority follow-ups.
+- Known bugs were triaged and no open P0/P1 runtime bug remains in the release scope.
+- Production frontend assets and the Go binary static-serving path have been verified by completed child work.
+- Completed P0/P1 children:
+  - `issue_770bcd71-f530-4e68-aa80-ee9722e18bef` Create v1 release checklist.
+  - `issue_78ea1387-a2e4-48eb-8a46-9f4be5dbfb18` Triage known bugs before v1 candidate.
+  - `issue_ab6377af-f1f4-4bee-af7f-04f4a829362e` Audit design doc against implemented behavior.
+  - `issue_fd973c0a-ea5d-42bd-89cf-39280c172dc4` Verify production binary serves embedded frontend assets.
+  - `issue_a69c3631-54b0-4890-8b61-78c7a9554d23` Write operator quickstart and default DB guidance.
+
+Lower-priority follow-up moved outside this P0 scope:
+
+- `issue_c6be910c-4715-4b83-8698-68094cf9cead` Preserve seeded roadmap DB workflow.
+
+Verification evidence:
+
+- `go test ./...`
+- `bun run typecheck`
+- `bun run build`
+- `make verify-production-binary`
+- `scripts/smoke.sh` and `scripts/browser-smoke.sh` coverage referenced by completed child issues
