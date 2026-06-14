@@ -147,6 +147,9 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
   const unresolvedBlockerCandidates = blockerCandidates.filter((candidate) => !isResolved(candidate));
   const resolvedBlockerCandidates = blockerCandidates.filter(isResolved);
   const currentParent = issue.parent_issue_id ? issues.find((candidate) => candidate.id === issue.parent_issue_id) : undefined;
+  const unresolvedBlockers = (issue.blockers || []).filter((blocker) => !isResolved(blocker));
+  const activeBlockedBy = activeBlockedByIssues(issue);
+  const resolvedBlockedBy = resolvedBlockedByIssues(issue);
   const parentSelectionUnchanged = parentID === (issue.parent_issue_id || "");
   const selectedParentPreserved = Boolean(parentQuery.trim() && parentID && parentCandidates.some((candidate) => candidate.id === parentID) && !matchesIssueSearch(parentCandidates.find((candidate) => candidate.id === parentID)!, parentQuery));
   const blockerQueryHasMatches = blockerCandidates.length > 0;
@@ -266,8 +269,8 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
         <div className="relationship-grid">
           <button type="button" disabled={!issue.parent_issue_id} onClick={() => issue.parent_issue_id && applyRelationshipFilter({ id: issue.parent_issue_id })}><strong>{issue.parent_issue_id ? 1 : 0}</strong><span>Parent</span></button>
           <button type="button" disabled={(issue.children?.length || 0) === 0} onClick={() => applyRelationshipFilter({ parent_id: issue.id })}><strong>{issue.children?.length || 0}</strong><span>Children</span></button>
-          <button type="button" disabled={(issue.blockers?.length || 0) === 0} onClick={() => applyRelationshipFilter({ blocker_of: issue.id })}><strong>{issue.blockers?.length || 0}</strong><span>Blockers</span></button>
-          <button type="button" disabled={(issue.blocked_by?.length || 0) === 0} onClick={() => applyRelationshipFilter({ blocked_by: issue.id })}><strong>{issue.blocked_by?.length || 0}</strong><span>Blocked by this</span></button>
+          <button type="button" disabled={(issue.blockers?.length || 0) === 0} onClick={() => applyRelationshipFilter({ blocker_of: issue.id })}><strong>{unresolvedBlockers.length}</strong><span>Active blockers</span></button>
+          <button type="button" disabled={(issue.blocked_by?.length || 0) === 0} onClick={() => applyRelationshipFilter({ blocked_by: issue.id })}><strong>{activeBlockedBy.length}</strong><span>Active dependents</span></button>
         </div>
 
         <div className="edit-field">
@@ -304,7 +307,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
           await api(`/api/issues/${issue.id}/blockers/${blocker.id}`, { method: "DELETE", username });
           await onRefresh();
         }, setBlockerError, { pending: "Removing blocker...", success: "Blocker removed." })} onOpen={onOpenIssue} />
-        <RelationshipList title="Blocking" issues={issue.blocked_by || []} onOpen={onOpenIssue} />
+        <BlockingRelationshipList active={activeBlockedBy} resolved={resolvedBlockedBy} currentIssueResolved={isResolved(issue)} onOpen={onOpenIssue} />
 
         <div className="edit-field">
           <label>Add blocker</label>
@@ -426,6 +429,21 @@ function BlockerRelationshipList({ issues, onRemove, onOpen }: { issues: Issue[]
   </div>;
 }
 
+function BlockingRelationshipList({ active, resolved, currentIssueResolved, onOpen }: { active: Issue[]; resolved: Issue[]; currentIssueResolved: boolean; onOpen?: (id: string) => void }) {
+  return <div className="relationship-list">
+    <h4>Blocking</h4>
+    {active.length === 0 && resolved.length === 0 && <EmptyState title="No blocked dependents" description="No issues depend on this one." compact />}
+    {active.length > 0 && <div className="relationship-group">
+      <span>Actively blocking</span>
+      {active.map((issue) => <RelationshipItem key={issue.id} issue={issue} onOpen={onOpen} />)}
+    </div>}
+    {resolved.length > 0 && <div className="relationship-group">
+      <span>{currentIssueResolved ? "Resolved because this issue is completed or canceled" : "Completed or canceled dependents"}</span>
+      {resolved.map((issue) => <RelationshipItem key={issue.id} issue={issue} onOpen={onOpen} />)}
+    </div>}
+  </div>;
+}
+
 function RelationshipItem({ issue, onRemove, onOpen }: { issue: Issue; onRemove?: (issue: Issue) => void; onOpen?: (id: string) => void }) {
   return <div className="relationship-item">
     <button className="relationship-link" onClick={() => onOpen?.(issue.id)}>{issue.title}</button>
@@ -437,6 +455,15 @@ function RelationshipItem({ issue, onRemove, onOpen }: { issue: Issue; onRemove?
 
 function isResolved(issue: Issue) {
   return issue.status === "completed" || issue.status === "canceled";
+}
+
+function activeBlockedByIssues(issue: Issue) {
+  if (isResolved(issue)) return [];
+  return (issue.blocked_by || []).filter((blockedBy) => !isResolved(blockedBy));
+}
+
+function resolvedBlockedByIssues(issue: Issue) {
+  return (issue.blocked_by || []).filter((blockedBy) => isResolved(issue) || isResolved(blockedBy));
 }
 
 function includeSelectedIssue(visible: Issue[], selectedID: string, allCandidates: Issue[]) {

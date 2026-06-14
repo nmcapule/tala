@@ -487,6 +487,16 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	if !containsCompactIssueID(blockerResource.ResolvedBlockedBy, resolvedDependentID) {
 		t.Fatalf("blocking resource resolved blocked_by split missing resolved dependent: %#v", blockerResource.ResolvedBlockedBy)
 	}
+	resolvedBlockingResource := readResource(t, server, "tala://issues/"+resolvedBlockerID+"/blockers")
+	if err := json.Unmarshal([]byte(resourceText(t, resolvedBlockingResource)), &blockerResource); err != nil {
+		t.Fatalf("decode resolved blocking resource: %v", err)
+	}
+	if containsCompactIssueID(blockerResource.UnresolvedBlockedBy, childID) {
+		t.Fatalf("resolved blocker should not have active blocked_by relationships: %#v", blockerResource.UnresolvedBlockedBy)
+	}
+	if !containsCompactIssueID(blockerResource.ResolvedBlockedBy, childID) {
+		t.Fatalf("resolved blocker should report open dependents as resolved blocked_by relationships: %#v", blockerResource.ResolvedBlockedBy)
+	}
 
 	planningResource := readResource(t, server, "tala://planning")
 	var planning struct {
@@ -511,6 +521,12 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	}
 	if !dependencyHasResolvedBlockedBy(planning.Blocking, blockerID, resolvedDependentID) {
 		t.Fatalf("planning resource missing resolved blocked_by context: %#v", planning.Blocking)
+	}
+	if dependencyHas(planning.Blocking, resolvedBlockerID, childID) {
+		t.Fatalf("planning resource treated completed blocker as actively blocking: %#v", planning.Blocking)
+	}
+	if !dependencyHasResolvedBlockedBy(planning.Blocking, resolvedBlockerID, childID) {
+		t.Fatalf("planning resource missing completed blocker's resolved dependent context: %#v", planning.Blocking)
 	}
 	assertStableDependencyContexts(t, planning.Blocked)
 	assertStableDependencyContexts(t, planning.Blocking)
@@ -1124,7 +1140,7 @@ func dependencyHas(contexts []dependencyContext, issueID, relatedID string) bool
 		if context.Issue.ID != issueID {
 			continue
 		}
-		if containsCompactIssueID(context.UnresolvedBlockers, relatedID) || containsCompactIssueID(context.BlockedBy, relatedID) {
+		if containsCompactIssueID(context.UnresolvedBlockers, relatedID) || containsCompactIssueID(context.UnresolvedBlockedBy, relatedID) {
 			return true
 		}
 	}

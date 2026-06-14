@@ -639,8 +639,8 @@ func (s *Server) readResource(ctx context.Context, uri string) (any, *rpcError) 
 					"unresolved_blockers":   unresolvedIssues(issue.Blockers),
 					"resolved_blockers":     resolvedIssues(issue.Blockers),
 					"blocked_by":            compactIssues(issue.BlockedBy),
-					"unresolved_blocked_by": unresolvedIssues(issue.BlockedBy),
-					"resolved_blocked_by":   resolvedIssues(issue.BlockedBy),
+					"unresolved_blocked_by": unresolvedBlockedBy(issue),
+					"resolved_blocked_by":   resolvedBlockedBy(issue),
 				}
 				return resourceResult(uri, blockers), nil
 			}
@@ -794,8 +794,8 @@ func blockingContexts(issues []domain.Issue) []dependencyContext {
 			UnresolvedBlockers:  []compactResourceIssue{},
 			ResolvedBlockers:    []compactResourceIssue{},
 			BlockedBy:           compactIssues(issue.BlockedBy),
-			UnresolvedBlockedBy: unresolvedIssues(issue.BlockedBy),
-			ResolvedBlockedBy:   resolvedIssues(issue.BlockedBy),
+			UnresolvedBlockedBy: unresolvedBlockedBy(issue),
+			ResolvedBlockedBy:   resolvedBlockedBy(issue),
 		})
 	}
 	return contexts
@@ -810,6 +810,19 @@ func unresolvedIssues(issues []domain.Issue) []compactResourceIssue {
 func resolvedIssues(issues []domain.Issue) []compactResourceIssue {
 	return compactIssues(filterIssues(issues, func(issue domain.Issue) bool {
 		return domain.TerminalStatus(issue.Status)
+	}))
+}
+
+func unresolvedBlockedBy(issue domain.Issue) []compactResourceIssue {
+	if domain.TerminalStatus(issue.Status) {
+		return []compactResourceIssue{}
+	}
+	return unresolvedIssues(issue.BlockedBy)
+}
+
+func resolvedBlockedBy(issue domain.Issue) []compactResourceIssue {
+	return compactIssues(filterIssues(issue.BlockedBy, func(blockedBy domain.Issue) bool {
+		return domain.TerminalStatus(issue.Status) || domain.TerminalStatus(blockedBy.Status)
 	}))
 }
 
