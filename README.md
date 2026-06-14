@@ -211,7 +211,7 @@ This repo includes a local Codex plugin that packages the Tala MCP server and ag
 Install the repo marketplace, then add the plugin:
 
 ```sh
-codex plugin marketplace add .agents/plugins
+codex plugin marketplace add .
 codex plugin add tala-project-tracker@tala
 ```
 

@@ -152,10 +152,10 @@ printf 'Running go test ./...\n'
 go test ./...
 
 if [[ "$dry_run" -eq 1 ]]; then
-  printf 'Dry run: would run codex plugin marketplace add .agents/plugins\n'
+  printf 'Dry run: would run codex plugin marketplace add .\n'
   printf 'Dry run: would run codex plugin add tala-project-tracker@tala\n'
 else
-  codex plugin marketplace add .agents/plugins
+  codex plugin marketplace add .
   codex plugin add tala-project-tracker@tala
 fi
 
