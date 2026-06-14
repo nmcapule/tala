@@ -59,6 +59,20 @@ The Vite dev server proxies `/api`, `/mcp`, and `/uploads` to `127.0.0.1:8080`, 
 go run ./cmd/tala -addr 127.0.0.1:8080 -db .tala/tala.db
 ```
 
+## Security Model
+
+Tala v1 is a local-first tool and does not implement server-side accounts, API keys, authorization checks, or per-user data isolation. The username field records who performed a mutation, but it is not authentication. Anyone who can reach the HTTP server can read and mutate issues, comments, tags, uploads, REST endpoints, and MCP tools.
+
+Keep the server bound to loopback for normal use:
+
+```sh
+go run ./cmd/tala -addr 127.0.0.1:8081 -db .tala/tala.db
+```
+
+Only expose Tala through a proxy when that proxy's access policy matches the data in the database. In an exe.dev VM, use the documented proxy controls at `https://exe.dev/docs/proxy.md`: private proxies are the default, `ssh exe.dev share set-public <vmname>` makes the selected port public, and `ssh exe.dev share set-private <vmname>` returns it to private access. Do not make a Tala port public unless the database is intentionally shareable.
+
+The default database path is `.tala/tala.db`. Use `-db`, `TALA_DB`, or the Makefile `DB`/`OWN_DB` variables to point experiments, smoke tests, and shared demos at a separate database instead of the project work ledger.
+
 ## Current Capabilities
 
 - Username-only local identity for issue edits, comments, and agent coordination.

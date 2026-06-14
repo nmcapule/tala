@@ -33,6 +33,8 @@ export function App() {
   const [selectedLoading, setSelectedLoading] = useState(Boolean(initialIssueID));
   const [sheetLoading, setSheetLoading] = useState<"filters" | "create" | null>(null);
   const lastListView = useRef<View>(initialView);
+  const backgroundRefreshInFlight = useRef(false);
+  const lastBackgroundRefreshAt = useRef(0);
   const showBoardLoading = useDelayedBusy(boardLoading > 0);
   const showContextLoading = useDelayedBusy(contextLoading > 0);
   const showTagsLoading = useDelayedBusy(tagsLoading > 0);
@@ -244,6 +246,33 @@ export function App() {
       setSelectedIssue(data);
     }
   }
+
+  async function refreshVisibleData() {
+    if (!username || document.hidden || backgroundRefreshInFlight.current) return;
+    backgroundRefreshInFlight.current = true;
+    try {
+      await refreshAll();
+    } finally {
+      lastBackgroundRefreshAt.current = Date.now();
+      backgroundRefreshInFlight.current = false;
+    }
+  }
+
+  useEffect(() => {
+    if (!username) return;
+    const refreshSoon = () => {
+      if (Date.now() - lastBackgroundRefreshAt.current < 2000) return;
+      refreshVisibleData().catch((err) => setError(err instanceof Error ? err.message : "Unable to refresh issue context."));
+    };
+    const intervalID = window.setInterval(refreshSoon, 30000);
+    window.addEventListener("focus", refreshSoon);
+    document.addEventListener("visibilitychange", refreshSoon);
+    return () => {
+      window.clearInterval(intervalID);
+      window.removeEventListener("focus", refreshSoon);
+      document.removeEventListener("visibilitychange", refreshSoon);
+    };
+  }, [username, selectedID, filters.q, filters.status, filters.assignee, filters.priority, filters.tag, filters.id, filters.parent_id, filters.blocked_by, filters.blocker_of, filters.state, filters.sort, filters.order]);
 
   async function retryGlobalLoad() {
     setError("");
