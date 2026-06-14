@@ -1,6 +1,6 @@
 ---
 name: tala-project-tracker
-description: Use Tala as a project-local issue tracker for planning, effort management, resumable agent work, and handoff. Trigger when Codex is asked to plan or implement project work, create or update feature/bug/task breakdowns, track progress in a project `tala.db`, consult a Tala MCP server, maintain parent/child/blocker relationships, add progress comments, or leave resumable checklists for future agents.
+description: Use Tala as a project-local issue tracker for planning, effort management, resumable agent work, and handoff. Trigger when Codex is asked to plan or implement project work, create or update feature/bug/task breakdowns, track progress in a project `.tala/tala.db`, consult a Tala MCP server, maintain parent/child/blocker relationships, add progress comments, or leave resumable checklists for future agents.
 ---
 
 # Tala Project Tracker
@@ -9,11 +9,11 @@ description: Use Tala as a project-local issue tracker for planning, effort mana
 
 Use Tala as the durable project work ledger. Before meaningful project work, consult Tala. During work, keep the relevant issue updated. At interruption or handoff, leave a comment that lets another agent resume.
 
-Prefer a configured Tala MCP server named `tala` when available. When installed through the repo-local Codex plugin, the plugin starts that server over stdio against the current workspace's `tala.db`; it does not require `make own-db`. If MCP tools are not available, use `scripts/tala_helper.py` from this skill against the project-local HTTP server.
+Prefer a configured Tala MCP server named `tala` when available. When installed through the repo-local Codex plugin, the plugin starts that server over stdio against the current workspace's `.tala/tala.db`; it does not require `make own-db`. If MCP tools are not available, use `scripts/tala_helper.py` from this skill against the project-local HTTP server.
 
 ## Project Setup
 
-- Default DB: `tala.db` in the project root.
+- Default DB: `.tala/tala.db` in the project root.
 - Plugin MCP DB override: `TALA_DB`.
 - Plugin workspace override: `TALA_WORKSPACE_ROOT`.
 - Default helper URL: `TALA_URL` or `http://127.0.0.1:8081`.

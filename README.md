@@ -25,7 +25,7 @@ Run the integrated Go server with the embedded frontend assets:
 make dev
 ```
 
-By default this listens on `127.0.0.1:8081` and stores data in `tala.db`.
+By default this listens on `127.0.0.1:8081` and stores data in `.tala/tala.db`.
 
 You can override both:
 
@@ -39,7 +39,7 @@ Run Tala against the project-local seeded database:
 make own-db
 ```
 
-`make own-db` listens on `127.0.0.1:8081` and uses the root `tala.db`. The currently seeded database contains Tala's own roadmap and known-bugs tracker.
+`make own-db` listens on `127.0.0.1:8081` and uses `.tala/tala.db`. The currently seeded database contains Tala's own roadmap and known-bugs tracker.
 
 You can override the seeded-db address and path:
 
@@ -56,7 +56,7 @@ bun run dev
 The Vite dev server proxies `/api` and `/mcp` to `127.0.0.1:8080`, so start the Go server on that port when using the frontend dev server:
 
 ```sh
-go run ./cmd/tala -addr 127.0.0.1:8080 -db tala.db
+go run ./cmd/tala -addr 127.0.0.1:8080 -db .tala/tala.db
 ```
 
 ## Current Capabilities
@@ -116,11 +116,11 @@ The browser smoke check uses `agent-browser` to exercise the React UI, including
 The Go server supports flags and environment variables:
 
 ```sh
-go run ./cmd/tala -addr 127.0.0.1:8081 -db tala.db
+go run ./cmd/tala -addr 127.0.0.1:8081 -db .tala/tala.db
 ```
 
 - `-addr` or `TALA_ADDR`: listen address, default `127.0.0.1:8080`
-- `-db` or `TALA_DB`: SQLite database path, default `tala.db`
+- `-db` or `TALA_DB`: SQLite database path, default `.tala/tala.db`
 
 ## API Surfaces
 
@@ -163,7 +163,7 @@ The MCP endpoint is `/mcp`. It supports JSON-RPC initialize, tool listing/calls,
 For Codex integration, the repo-local `tala-project-tracker` plugin starts the same MCP surface over stdio:
 
 ```sh
-go run ./cmd/tala-mcp-stdio -db tala.db
+go run ./cmd/tala-mcp-stdio -db .tala/tala.db
 ```
 
 Use the HTTP `/mcp` endpoint when running the full Tala server for browser, REST, or smoke-test workflows. Use the stdio command for clients, such as Codex, that launch MCP servers directly.
@@ -211,4 +211,4 @@ Then invoke the skill in Codex with:
 $tala-project-tracker plan this work in Tala and keep the issue updated
 ```
 
-The plugin starts the Tala MCP server over stdio against the current workspace's `tala.db`. Set `TALA_DB` to use another database, or `TALA_WORKSPACE_ROOT` if Codex launches the plugin from outside the repo. The skill falls back to the helper at `http://127.0.0.1:8081` when MCP tools are unavailable.
+The plugin starts the Tala MCP server over stdio against the current workspace's `.tala/tala.db`. Set `TALA_DB` to use another database, or `TALA_WORKSPACE_ROOT` if Codex launches the plugin from outside the repo. The skill falls back to the helper at `http://127.0.0.1:8081` when MCP tools are unavailable.

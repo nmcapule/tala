@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	dbPath := flag.String("db", env("TALA_DB", "tala.db"), "SQLite database path")
+	dbPath := flag.String("db", env("TALA_DB", ".tala/tala.db"), "SQLite database path")
 	flag.Parse()
 
 	st, err := store.Open(*dbPath)

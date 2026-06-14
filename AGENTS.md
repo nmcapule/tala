@@ -13,8 +13,8 @@ Always use this repo's own Tala skill as the durable project work ledger:
 
 - Codex plugin: `plugins/tala-project-tracker`
 - Skill: `tala-project-tracker` from the plugin
-- Database: `tala.db` at the project root
-- Codex MCP: the repo-local plugin starts `tala` over stdio against the workspace `tala.db`
+- Database: `.tala/tala.db` under the project root
+- Codex MCP: the repo-local plugin starts `tala` over stdio against the workspace `.tala/tala.db`
 - HTTP server URL for browser/helper workflows: `http://127.0.0.1:8081`
 - HTTP server command for browser/helper workflows: `make own-db`
 
@@ -25,11 +25,11 @@ unavailable, fall back to
 Do not use another Tala database unless the user explicitly requests it.
 
 Before finishing any work that creates temporary issues, tags, comments, or
-other test records in this repo's `tala.db`, clean them up or document why they
+other test records in this repo's `.tala/tala.db`, clean them up or document why they
 must remain. This applies especially to browser/helper smoke tests that create
 records with names such as `browser_smoke_*`, `detail-smoke-*`,
 `profile-smoke-*`, `overflow-*`, or other run-specific markers. Run a post-check
-against `tala.db` to confirm temporary entries are gone, while preserving real
+against `.tala/tala.db` to confirm temporary entries are gone, while preserving real
 project issues, roadmap items, and durable bug/task records.
 
 ## Product Design References

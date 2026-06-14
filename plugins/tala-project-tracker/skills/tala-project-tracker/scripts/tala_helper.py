@@ -14,7 +14,7 @@ DEFAULT_URL = "http://127.0.0.1:8081"
 def project_root() -> Path:
     current = Path.cwd().resolve()
     for path in [current, *current.parents]:
-        if (path / "tala.db").exists() or (path / "Makefile").exists() or (path / ".git").exists():
+        if (path / ".tala" / "tala.db").exists() or (path / "tala.db").exists() or (path / "Makefile").exists() or (path / ".git").exists():
             return path
     return current
 
@@ -160,7 +160,7 @@ def main():
     parser = argparse.ArgumentParser(description="Interact with a project-local Tala server.")
     parser.add_argument("--url", default=os.environ.get("TALA_URL", DEFAULT_URL))
     parser.add_argument("--username", default=os.environ.get("TALA_USERNAME", "agent"))
-    parser.add_argument("--db", default=os.environ.get("TALA_DB", "tala.db"))
+    parser.add_argument("--db", default=os.environ.get("TALA_DB", ".tala/tala.db"))
     sub = parser.add_subparsers(required=True)
 
     health = sub.add_parser("health")

@@ -23,7 +23,7 @@ ROOT="$(find_workspace_root)" || {
 }
 
 if [ -z "${TALA_DB:-}" ]; then
-	export TALA_DB="$ROOT/tala.db"
+	export TALA_DB="$ROOT/.tala/tala.db"
 fi
 
 cd "$ROOT"

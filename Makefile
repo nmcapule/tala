@@ -1,11 +1,11 @@
 .PHONY: browser-smoke build dev frontend-build frontend-typecheck own-db smoke test
 
 GO_ADDR ?= 127.0.0.1:8081
-DB ?= tala.db
+DB ?= .tala/tala.db
 SMOKE_URL ?= http://$(GO_ADDR)
 TALA_SMOKE_DB ?= $(OWN_DB)
 OWN_DB_ADDR ?= 127.0.0.1:8081
-OWN_DB ?= tala.db
+OWN_DB ?= .tala/tala.db
 
 dev:
 	go run ./cmd/tala -addr $(GO_ADDR) -db $(DB)

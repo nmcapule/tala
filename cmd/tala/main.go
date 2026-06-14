@@ -19,7 +19,7 @@ var staticFS embed.FS
 
 func main() {
 	addr := flag.String("addr", env("TALA_ADDR", "127.0.0.1:8080"), "listen address")
-	dbPath := flag.String("db", env("TALA_DB", "tala.db"), "SQLite database path")
+	dbPath := flag.String("db", env("TALA_DB", ".tala/tala.db"), "SQLite database path")
 	flag.Parse()
 
 	st, err := store.Open(*dbPath)

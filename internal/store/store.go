@@ -6,6 +6,8 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,6 +25,9 @@ type Store struct {
 }
 
 func Open(path string) (*Store, error) {
+	if err := ensureDatabaseDir(path); err != nil {
+		return nil, err
+	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, err
@@ -38,6 +43,18 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+func ensureDatabaseDir(path string) error {
+	path = strings.TrimSpace(path)
+	if path == "" || path == ":memory:" || strings.HasPrefix(path, "file:") {
+		return nil
+	}
+	dir := filepath.Dir(path)
+	if dir == "." || dir == "" {
+		return nil
+	}
+	return os.MkdirAll(dir, 0o755)
 }
 
 func (s *Store) Close() error {

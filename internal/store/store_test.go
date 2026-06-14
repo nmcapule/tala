@@ -116,6 +116,18 @@ func TestOpenCanReopenExistingDatabase(t *testing.T) {
 	}
 }
 
+func TestOpenCreatesDatabaseParentDirectory(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), ".tala", "tala.db")
+
+	st, err := Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRecentCommentsUseInsertionOrderWhenTimestampsMatch(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
