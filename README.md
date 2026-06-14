@@ -222,3 +222,21 @@ $tala-project-tracker plan this work in Tala and keep the issue updated
 ```
 
 The plugin starts the Tala MCP server over stdio against the current workspace's `.tala/tala.db`. Set `TALA_DB` to use another database, or `TALA_WORKSPACE_ROOT` if Codex launches the plugin from outside the repo.
+
+### Codex Plugin Release
+
+Release the repo-local plugin from the checkout with the helper script:
+
+```sh
+scripts/release-codex-plugin.sh
+```
+
+The script validates `plugins/tala-project-tracker`, checks `.agents/plugins/marketplace.json`, bumps the plugin `+codex.<timestamp>` cachebuster, runs `go test ./...`, refreshes the repo marketplace, and reinstalls `tala-project-tracker@tala`.
+
+Use a dry run before releasing:
+
+```sh
+scripts/release-codex-plugin.sh --dry-run
+```
+
+Use `--no-bump` only when the manifest version should remain unchanged. After reinstalling, start a new Codex thread so the refreshed skill and MCP tools are loaded cleanly.

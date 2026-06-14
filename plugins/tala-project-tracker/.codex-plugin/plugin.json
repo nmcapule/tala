@@ -1,6 +1,6 @@
 {
   "name": "tala-project-tracker",
-  "version": "0.1.0+codex.20260614114710",
+  "version": "0.1.0+codex.20260614125049",
   "description": "Use Tala as a local project issue tracker for Codex work.",
   "author": {
     "name": "Tala"
