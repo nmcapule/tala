@@ -83,3 +83,33 @@ Verification evidence:
 - `go test ./internal/app ./internal/httpapi ./internal/store`
 - `go test ./...`
 - `scripts/smoke.sh` REST coverage referenced by completed child issues
+
+## Roadmap: quality, testing, and release operations
+
+Tala issue: `issue_18f3e881-5408-4941-851c-8ff0d3cbb01f`
+
+Closed: 2026-06-14
+
+Closure evidence:
+
+- REST, MCP, browser UI, production assets, and DB persistence have repeatable verification paths.
+- The release checklist documents disposable database usage and smoke cleanup expectations.
+- Browser smoke coverage exercises login, board, create, detail editing, Markdown preview and sanitization, relationships, filters, blockers, tags, profile paths, and mobile wrapping.
+- REST and MCP smoke coverage exercise validation, filters, relationships, comments, resources, tool success, tool errors, and protocol errors.
+- Completed P1 children:
+  - `issue_bbad6e6a-bcab-477d-9e56-697013d0f005` Expand browser smoke coverage.
+  - `issue_41040cae-ab54-448d-b83f-5719f8ff0dbd` Expand MCP smoke coverage.
+  - `issue_db2dcded-474c-4355-a9c3-8bfa588a7065` Draft CI candidate checklist.
+  - `issue_81021e6a-cd24-4bf7-8199-4bee7f19b52d` Expand REST smoke coverage.
+  - `issue_5f2969cf-4bd1-4a56-8773-a47cc937e1d4` Verify production build output stability.
+
+Lower-priority follow-up moved outside this P1 scope:
+
+- `issue_0069119d-ab23-4218-bd48-99e471dc85e6` Define stable fixture or seed data strategy.
+
+Verification evidence:
+
+- `go test ./...`
+- `bun run typecheck`
+- `bun run build`
+- `scripts/smoke.sh` and `scripts/browser-smoke.sh` coverage referenced by completed child issues
