@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import mimetypes
 import os
 import urllib.error
 import urllib.parse
@@ -37,6 +38,38 @@ def request_json(method: str, url: str, payload=None, username=None):
         raise SystemExit(f"{method} {url} failed with HTTP {err.code}: {text}")
     except urllib.error.URLError as err:
         raise SystemExit(f"{method} {url} failed: {err.reason}")
+
+
+def request_multipart_image(url: str, path: Path, username=None):
+    if not path.exists():
+        raise SystemExit(f"image path not found: {path}")
+    if not path.is_file():
+        raise SystemExit(f"image path is not a file: {path}")
+    boundary = "----tala-upload-" + os.urandom(12).hex()
+    content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    head = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="image"; filename="{path.name}"\r\n'
+        f"Content-Type: {content_type}\r\n\r\n"
+    ).encode("utf-8")
+    tail = f"\r\n--{boundary}--\r\n".encode("utf-8")
+    data = head + path.read_bytes() + tail
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": f"multipart/form-data; boundary={boundary}",
+    }
+    if username:
+        headers["X-Tala-Username"] = username
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as res:
+            text = res.read().decode("utf-8")
+            return json.loads(text) if text else None
+    except urllib.error.HTTPError as err:
+        text = err.read().decode("utf-8")
+        raise SystemExit(f"POST {url} failed with HTTP {err.code}: {text}")
+    except urllib.error.URLError as err:
+        raise SystemExit(f"POST {url} failed: {err.reason}")
 
 
 def mcp(url: str, method: str, params=None):
@@ -129,6 +162,17 @@ def cmd_comment(args):
     ))
 
 
+def cmd_upload_image(args):
+    uploaded = request_multipart_image(
+        f"{args.url.rstrip('/')}/api/uploads/images",
+        Path(args.path).expanduser(),
+        args.username,
+    )
+    alt_text = (args.alt_text or Path(args.path).name).strip() or "uploaded image"
+    uploaded["markdown"] = f"![{alt_text}]({uploaded['url']})"
+    print_json(uploaded)
+
+
 def cmd_set_status(args):
     print_json(request_json(
         "PATCH",
@@ -192,6 +236,11 @@ def main():
     group.add_argument("--body")
     group.add_argument("--body-file")
     comment.set_defaults(func=cmd_comment)
+
+    upload_image = sub.add_parser("upload-image")
+    upload_image.add_argument("--path", required=True)
+    upload_image.add_argument("--alt-text")
+    upload_image.set_defaults(func=cmd_upload_image)
 
     set_status = sub.add_parser("set-status")
     set_status.add_argument("--issue-id", required=True)

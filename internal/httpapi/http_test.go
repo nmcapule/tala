@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -44,6 +45,22 @@ func newTestHandlerWithStatic(t *testing.T) http.Handler {
 		_, _ = w.Write([]byte("<main>static app</main>"))
 	})
 	return New(app.NewService(st), static).Routes()
+}
+
+func newTestHandlerWithUploads(t *testing.T) (http.Handler, string) {
+	t.Helper()
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, ".tala", "tala.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := st.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	uploadDir := filepath.Join(dir, ".tala", "uploads", "images")
+	return New(app.NewServiceWithUploadDir(st, uploadDir), nil).Routes(), uploadDir
 }
 
 func TestRESTIssueWorkflowAndValidation(t *testing.T) {
@@ -427,6 +444,79 @@ func TestRESTIssueWorkflowAndValidation(t *testing.T) {
 	decodeBody(t, clearParent, &clearedParent)
 	if clearedParent.ParentIssueID != nil {
 		t.Fatalf("expected parent to clear, got %q", *clearedParent.ParentIssueID)
+	}
+}
+
+func TestRESTImageUploadAndServing(t *testing.T) {
+	handler, uploadDir := newTestHandlerWithUploads(t)
+
+	upload := doMultipartImage(t, handler, "alex", "screenshot.png", []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+	})
+	if upload.Code != http.StatusCreated {
+		t.Fatalf("upload failed: %d %s", upload.Code, upload.Body.String())
+	}
+	var uploaded domain.UploadedImage
+	decodeBody(t, upload, &uploaded)
+	if uploaded.URL == "" || uploaded.Filename == "" || uploaded.ContentType != "image/png" || uploaded.Size == 0 || !strings.Contains(uploaded.Markdown, uploaded.URL) {
+		t.Fatalf("unexpected upload response: %#v", uploaded)
+	}
+	if !strings.HasPrefix(uploaded.URL, "/uploads/images/") {
+		t.Fatalf("unexpected upload URL: %q", uploaded.URL)
+	}
+	if !strings.HasPrefix(filepath.Clean(filepath.Join(uploadDir, uploaded.Filename)), filepath.Clean(uploadDir)) {
+		t.Fatalf("uploaded filename escaped upload dir: %q", uploaded.Filename)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, uploaded.URL, nil)
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("serve upload failed: %d %s", res.Code, res.Body.String())
+	}
+	if got := res.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("expected image/png content type, got %q", got)
+	}
+	if got := res.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("expected nosniff, got %q", got)
+	}
+}
+
+func TestRESTImageUploadValidation(t *testing.T) {
+	handler, _ := newTestHandlerWithUploads(t)
+
+	missingUser := doMultipartImage(t, handler, "", "screenshot.png", []byte{0x89, 0x50, 0x4e, 0x47})
+	if missingUser.Code != http.StatusUnauthorized {
+		t.Fatalf("expected missing username, got %d %s", missingUser.Code, missingUser.Body.String())
+	}
+
+	invalid := doMultipartImage(t, handler, "alex", "notes.txt", []byte("not an image"))
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid image rejection, got %d %s", invalid.Code, invalid.Body.String())
+	}
+	var invalidBody struct {
+		Error domain.AppError `json:"error"`
+	}
+	decodeBody(t, invalid, &invalidBody)
+	if invalidBody.Error.Code != domain.CodeValidationError || invalidBody.Error.Field != "image" {
+		t.Fatalf("expected image validation error, got %#v", invalidBody.Error)
+	}
+
+	missingReq := httptest.NewRequest(http.MethodPost, "/api/uploads/images", strings.NewReader(""))
+	missingReq.Header.Set("X-Tala-Username", "alex")
+	missingReq.Header.Set("Content-Type", "multipart/form-data; boundary=missing")
+	missingRes := httptest.NewRecorder()
+	handler.ServeHTTP(missingRes, missingReq)
+	if missingRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected missing file rejection, got %d %s", missingRes.Code, missingRes.Body.String())
+	}
+
+	traversal := httptest.NewRequest(http.MethodGet, "/uploads/images/../tala.db", nil)
+	traversalRes := httptest.NewRecorder()
+	handler.ServeHTTP(traversalRes, traversal)
+	if traversalRes.Code != http.StatusNotFound {
+		t.Fatalf("expected traversal request to return 404, got %d %s", traversalRes.Code, traversalRes.Body.String())
 	}
 }
 
@@ -974,6 +1064,30 @@ func doJSON(t *testing.T, handler http.Handler, method, path, username string, b
 	}
 	req := httptest.NewRequest(method, path, bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
+	if username != "" {
+		req.Header.Set("X-Tala-Username", username)
+	}
+	res := httptest.NewRecorder()
+	handler.ServeHTTP(res, req)
+	return res
+}
+
+func doMultipartImage(t *testing.T, handler http.Handler, username, filename string, data []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("image", filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(data); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/uploads/images", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 	if username != "" {
 		req.Header.Set("X-Tala-Username", username)
 	}

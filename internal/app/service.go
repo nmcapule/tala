@@ -12,11 +12,16 @@ import (
 )
 
 type Service struct {
-	store *store.Store
+	store     *store.Store
+	uploadDir string
 }
 
 func NewService(st *store.Store) *Service {
 	return &Service{store: st}
+}
+
+func NewServiceWithUploadDir(st *store.Store, uploadDir string) *Service {
+	return &Service{store: st, uploadDir: strings.TrimSpace(uploadDir)}
 }
 
 type CreateIssueRequest struct {

@@ -4,7 +4,7 @@
 
 - `Roadmap:` or `Epic:` parent issues: broad outcomes with child work.
 - `Feature:` user-visible capability.
-- `Bug:` incorrect behavior or regression.
+- `Bug:` incorrect behavior or regression. For UI-related bugs, include one or more uploaded visual references in the description.
 - `Investigation:` unknown root cause or design discovery.
 - `Task:` implementation or operational work.
 - `Release:` release readiness or verification work.
@@ -31,6 +31,11 @@
 
 **References** <optional>
 
+**Visual references** <required for UI-related bugs>
+
+- ![short description](/uploads/images/<filename>)
+- Viewport/device/route/state: <context>
+
 **Action Items**
 
 - [ ] <sample action item 1>
@@ -39,6 +44,7 @@
 ```
 
 - Omit the `References` section when there are no relevant docs, issues, files, logs, or external links.
+- Omit the `Visual references` section only for non-UI issues. If a UI bug cannot include an uploaded image, keep the section and explain why capture/upload was unavailable.
 - Link blockers when one issue cannot proceed until another is resolved.
 - Avoid blocker links for simple ordering preferences.
 
@@ -87,6 +93,10 @@ Done:
 Observed:
 - ...
 
+Visual references: <required when this update reports UI state, browser QA, a visual defect, or a design mismatch>
+- ![short description](/uploads/images/<filename>)
+- Viewport/device/route/state: ...
+
 Next:
 - ...
 ```
@@ -101,6 +111,10 @@ Current state:
 
 Completed:
 - ...
+
+Visual references: <required when current state or completed work is UI-related>
+- ![short description](/uploads/images/<filename>)
+- Viewport/device/route/state: ...
 
 Remaining:
 - ...
@@ -122,6 +136,10 @@ Completed:
 
 Verification:
 - ...
+
+Visual references: <required when completion verifies UI behavior or visual state>
+- ![short description](/uploads/images/<filename>)
+- Viewport/device/route/state: ...
 
 Follow-ups:
 - ...

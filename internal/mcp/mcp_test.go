@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -27,6 +28,22 @@ func newTestServer(t *testing.T) *Server {
 		}
 	})
 	return New(app.NewService(st))
+}
+
+func newTestServerWithUploads(t *testing.T) (*Server, string) {
+	t.Helper()
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, ".tala", "tala.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := st.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	uploadDir := filepath.Join(dir, ".tala", "uploads", "images")
+	return New(app.NewServiceWithUploadDir(st, uploadDir)), uploadDir
 }
 
 func TestMCPInitializeAdvertisesServerCapabilities(t *testing.T) {
@@ -103,8 +120,8 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	var toolsBody map[string]any
 	decodeRecorder(t, tools, &toolsBody)
 	toolList := toolsBody["result"].(map[string]any)["tools"].([]any)
-	if len(toolList) != 11 {
-		t.Fatalf("expected 11 tools, got %d", len(toolList))
+	if len(toolList) != 12 {
+		t.Fatalf("expected 12 tools, got %d", len(toolList))
 	}
 	firstSchema := toolList[0].(map[string]any)["inputSchema"].(map[string]any)
 	if firstSchema["type"] != "object" || firstSchema["properties"] == nil {
@@ -118,6 +135,7 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	assertToolSchemasUseScalarTypes(t, toolList)
 	assertToolPropDescriptionContains(t, toolList, "issue_search", "q", "comments", "tags", "creator", "priority")
 	assertToolPropDescriptionContains(t, toolList, "issue_search", "blocker_of", "blocked")
+	assertRequiredToolProp(t, toolList, "image_upload", "path")
 
 	resources := rpcRequest(t, server, "http://127.0.0.1:8080", "resources/list", map[string]any{})
 	if resources.Code != http.StatusOK {
@@ -495,6 +513,56 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	assertStableDependencyContexts(t, planning.Blocking)
 }
 
+func TestMCPImageUploadTool(t *testing.T) {
+	server, uploadDir := newTestServerWithUploads(t)
+	imagePath := filepath.Join(t.TempDir(), "browser-screenshot.png")
+	if err := os.WriteFile(imagePath, []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+	}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := callTool(t, server, "image_upload", map[string]any{
+		"username": "agent",
+		"path":     imagePath,
+		"alt_text": "mobile issue detail",
+	})
+	uploaded := result["result"].(map[string]any)["structuredContent"].(map[string]any)
+	if uploaded["content_type"] != "image/png" {
+		t.Fatalf("expected image/png upload, got %#v", uploaded)
+	}
+	url := uploaded["url"].(string)
+	markdown := uploaded["markdown"].(string)
+	if !strings.HasPrefix(url, "/uploads/images/") || !strings.Contains(markdown, url) || !strings.Contains(markdown, "mobile issue detail") {
+		t.Fatalf("unexpected uploaded image response: %#v", uploaded)
+	}
+	filename := uploaded["filename"].(string)
+	if _, err := os.Stat(filepath.Join(uploadDir, filename)); err != nil {
+		t.Fatalf("expected uploaded file on disk: %v", err)
+	}
+}
+
+func TestMCPImageUploadValidation(t *testing.T) {
+	server, _ := newTestServerWithUploads(t)
+
+	missingUser := callToolExpectToolError(t, server, "image_upload", map[string]any{"path": "missing.png"})
+	assertToolAppError(t, missingUser, domain.CodeMissingUsername, "username")
+
+	badPath := callToolExpectToolError(t, server, "image_upload", map[string]any{"username": "agent", "path": "missing.png"})
+	assertToolAppError(t, badPath, domain.CodeNotFound, "path")
+
+	invalidPath := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(invalidPath, []byte("not an image"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	invalidImage := callToolExpectToolError(t, server, "image_upload", map[string]any{"username": "agent", "path": invalidPath})
+	assertToolAppError(t, invalidImage, domain.CodeValidationError, "image")
+
+	badType := callToolExpectToolError(t, server, "image_upload", map[string]any{"username": "agent", "path": 42})
+	assertToolAppError(t, badType, domain.CodeValidationError, "path")
+}
+
 func TestMCPMutationsRequireUsernameAtRuntime(t *testing.T) {
 	server := newTestServer(t)
 
@@ -742,6 +810,7 @@ func TestMCPRelationshipValidationReportsRequestFields(t *testing.T) {
 func assertRequiredUsername(t *testing.T, tools []any) {
 	t.Helper()
 	mutatingTools := map[string]bool{
+		"image_upload":         true,
 		"issue_create":         true,
 		"issue_update":         true,
 		"issue_comment":        true,

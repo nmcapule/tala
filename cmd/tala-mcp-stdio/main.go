@@ -22,7 +22,7 @@ func main() {
 	}
 	defer st.Close()
 
-	server := mcp.New(app.NewService(st))
+	server := mcp.New(app.NewServiceWithUploadDir(st, app.UploadDirForDBPath(*dbPath)))
 	if err := server.ServeStdio(context.Background(), os.Stdin, os.Stdout); err != nil {
 		log.Fatal(err)
 	}

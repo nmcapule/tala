@@ -245,6 +245,25 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		return nil, rpcErr
 	}
 	switch name {
+	case "image_upload":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		username, appErr := usernameArgument(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		path, appErr := requiredStringArgument(fields, "path", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		altText, appErr := optionalStringArgument(fields, "alt_text", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		uploaded, err := s.service.UploadImageFile(ctx, username, path, altText)
+		return toolResult("Uploaded image.", uploaded, err)
 	case "issue_create":
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(raw, &fields); err != nil {
@@ -812,6 +831,14 @@ func capabilities() map[string]any {
 
 func tools() []map[string]any {
 	return []map[string]any{
+		tool("image_upload", "Upload a local image file for embedding in Markdown descriptions or comments.", schema(
+			props(
+				strProp("username", "Required username for the mutation."),
+				strProp("path", "Local image file path to upload."),
+				strProp("alt_text", "Optional Markdown alt text."),
+			),
+			[]string{"username", "path"},
+		)),
 		tool("issue_create", "Create an issue with Markdown description, tags, assignee, priority, and optional parent.", schema(
 			props(
 				strProp("username", "Required username for the mutation."),

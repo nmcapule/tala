@@ -36,6 +36,17 @@ Only use `scripts/tala_helper.py` from this skill against the project-local HTTP
 5. For complex work, ensure a parent issue exists and create child issues for independently resumable work. Use nested children only when a child itself needs multiple implementation phases.
 6. Use blockers only for real prerequisites that prevent progress.
 
+## UI Evidence
+
+For UI-related bugs and UI-related comment updates, always include one or more uploaded image references in the Tala issue description or comment. UI-related work includes visual regressions, layout/rendering defects, design mismatches, browser QA findings, frontend interaction bugs, and comments that report or compare visible UI state.
+
+- Prefer screenshots captured through `agent-browser` when the state is reproducible in the UI.
+- Save screenshots to a local file path, upload with `mcp__tala.image_upload` when available, and paste the returned `markdown` into the issue description or comment.
+- If MCP upload is unavailable, use the helper fallback: `python <skill>/scripts/tala_helper.py upload-image --path <image-path> --alt-text "<short description>"`, then paste the returned `markdown`.
+- Include enough context near the image to make it useful: viewport/device, route or screen, relevant state, and what the image proves.
+- If Tala image upload is unavailable, capture or preserve the image locally when possible, add a clear blocker note, and explain what must be uploaded later.
+- If no image can be captured, say why in the issue/comment and include the best reproducible UI context instead.
+
 ## During Implementation
 
 - Mark the active issue `in_progress` before making substantive changes.
@@ -67,6 +78,7 @@ python <skill>/scripts/tala_helper.py planning
 python <skill>/scripts/tala_helper.py search --q "release"
 python <skill>/scripts/tala_helper.py create --title "Feature: export report" --priority P2 --tag feature --tag roadmap
 python <skill>/scripts/tala_helper.py comment --issue-id issue_123 --body-file /tmp/handoff.md
+python <skill>/scripts/tala_helper.py upload-image --path /tmp/screenshot.png --alt-text "mobile issue detail"
 python <skill>/scripts/tala_helper.py set-status --issue-id issue_123 --status in_progress
 ```
 

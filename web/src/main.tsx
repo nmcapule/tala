@@ -13,6 +13,8 @@ import {
   Filter,
   GitBranch,
   Link2,
+  ImagePlus,
+  LoaderCircle,
   MessageSquare,
   Plus,
   RefreshCw,
@@ -55,6 +57,7 @@ type Issue = {
 
 type View = "board" | "hierarchy" | "blockers" | "profile";
 type ActionNotice = { tone: "pending" | "success"; message: string };
+type UploadedImage = { url: string; filename: string; content_type: string; size: number; markdown?: string };
 type IssueFilters = {
   q: string;
   status: string;
@@ -131,11 +134,12 @@ const tagColorChoices = [
 
 function App() {
   const initialView = viewFromLocation();
+  const initialIssueID = issueIDFromLocation();
   const [username, setUsername] = useState(storedUsername);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
-  const [selectedID, setSelectedID] = useState<string | null>(() => issueIDFromLocation());
+  const [selectedID, setSelectedID] = useState<string | null>(initialIssueID);
   const [view, setView] = useState<View>(initialView);
   const [filterOpen, setFilterOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -143,39 +147,64 @@ function App() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [error, setError] = useState("");
   const [permalinkCopied, setPermalinkCopied] = useState(false);
+  const [boardLoading, setBoardLoading] = useState(0);
+  const [contextLoading, setContextLoading] = useState(0);
+  const [tagsLoading, setTagsLoading] = useState(0);
+  const [selectedLoading, setSelectedLoading] = useState(Boolean(initialIssueID));
+  const [sheetLoading, setSheetLoading] = useState<"filters" | "create" | null>(null);
   const lastListView = useRef<View>(initialView);
+  const showBoardLoading = useDelayedBusy(boardLoading > 0);
+  const showContextLoading = useDelayedBusy(contextLoading > 0);
+  const showTagsLoading = useDelayedBusy(tagsLoading > 0);
+  const showSelectedLoading = useDelayedBusy(selectedLoading);
+  const showSheetLoading = useDelayedBusy(Boolean(sheetLoading));
+
+  async function trackLoading(setter: React.Dispatch<React.SetStateAction<number>>, fn: () => Promise<void>) {
+    setter((count) => count + 1);
+    try {
+      await fn();
+    } finally {
+      setter((count) => Math.max(0, count - 1));
+    }
+  }
 
   async function refreshBoard() {
-    const params = new URLSearchParams();
-    filterKeys.forEach((key) => {
-      const value = filters[key];
-      if (value) params.set(key, value);
+    await trackLoading(setBoardLoading, async () => {
+      const params = new URLSearchParams();
+      filterKeys.forEach((key) => {
+        const value = filters[key];
+        if (value) params.set(key, value);
+      });
+      const res = await fetch(`/api/issues?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "Unable to load issues.");
+      setIssues(data || []);
     });
-    const res = await fetch(`/api/issues?${params}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || "Unable to load issues.");
-    setIssues(data || []);
   }
 
   async function refreshIssueContext() {
-    const res = await fetch("/api/issues");
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || "Unable to load issues.");
-    const summaries = (data || []) as Issue[];
-    const details = await Promise.all(summaries.map(async (issue) => {
-      const detailRes = await fetch(`/api/issues/${issue.id}`);
-      const detail = await detailRes.json();
-      if (!detailRes.ok) throw new Error(detail.error?.message || "Unable to load issue context.");
-      return detail as Issue;
-    }));
-    setAllIssues(details);
+    await trackLoading(setContextLoading, async () => {
+      const res = await fetch("/api/issues");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "Unable to load issues.");
+      const summaries = (data || []) as Issue[];
+      const details = await Promise.all(summaries.map(async (issue) => {
+        const detailRes = await fetch(`/api/issues/${issue.id}`);
+        const detail = await detailRes.json();
+        if (!detailRes.ok) throw new Error(detail.error?.message || "Unable to load issue context.");
+        return detail as Issue;
+      }));
+      setAllIssues(details);
+    });
   }
 
   async function refreshTags() {
-    const res = await fetch("/api/tags");
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || "Unable to load tags.");
-    setTags(data || []);
+    await trackLoading(setTagsLoading, async () => {
+      const res = await fetch("/api/tags");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || "Unable to load tags.");
+      setTags(data || []);
+    });
   }
 
   async function refresh() {
@@ -239,20 +268,26 @@ function App() {
   }
 
   async function openFilterSheet() {
+    setSheetLoading("filters");
     try {
       await Promise.all([refreshIssueContext(), refreshTags()]);
       setFilterOpen(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load filter context.");
+    } finally {
+      setSheetLoading(null);
     }
   }
 
   async function openCreateSheet() {
+    setSheetLoading("create");
     try {
       await refreshIssueContext();
       setCreateOpen(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load issue context.");
+    } finally {
+      setSheetLoading(null);
     }
   }
 
@@ -290,12 +325,18 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!selectedID) return;
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0 }));
+  }, [selectedID]);
+
+  useEffect(() => {
     if (!selectedID) {
       setSelectedIssue(null);
       return;
     }
     let canceled = false;
     setSelectedIssue((current) => current?.id === selectedID ? current : null);
+    setSelectedLoading(true);
     fetch(`/api/issues/${selectedID}`)
       .then(async (res) => {
         const data = await res.json();
@@ -304,9 +345,13 @@ function App() {
       })
       .catch((err) => {
         if (!canceled) setError(err.message);
+      })
+      .finally(() => {
+        if (!canceled) setSelectedLoading(false);
       });
     return () => {
       canceled = true;
+      setSelectedLoading(false);
     };
   }, [selectedID]);
 
@@ -356,27 +401,33 @@ function App() {
         </div>
         <div className="top-actions">
           {selected && <button className="icon-button" onClick={() => copyPermalink().catch((err) => setError(err instanceof Error ? err.message : "Unable to copy permalink."))} aria-label={permalinkCopied ? "Copied permalink" : "Copy permalink"} title={permalinkCopied ? "Copied" : "Copy permalink"}><Link2 size={20} /></button>}
-          {!selected && <button className="icon-button" onClick={openFilterSheet} aria-label="Filters"><Filter size={20} /></button>}
-          {!selected && <button className="icon-button primary" onClick={openCreateSheet} aria-label="Create issue"><Plus size={20} /></button>}
+          {!selected && <button className="icon-button" disabled={Boolean(sheetLoading)} onClick={openFilterSheet} aria-label="Filters"><Filter size={20} /></button>}
+          {!selected && <button className="icon-button primary" disabled={Boolean(sheetLoading)} onClick={openCreateSheet} aria-label="Create issue"><Plus size={20} /></button>}
         </div>
       </header>
 
       {error && <RequestError message={error} onRetry={retryGlobalLoad} onDismiss={() => setError("")} />}
+      {showSheetLoading && <div className="content loading-content"><LoadingStatus message={sheetLoading === "create" ? "Loading issue context..." : "Loading filter context..."} /></div>}
 
       <main className="content">
         {selected ? (
-          <IssueDetail issue={selected} username={username} issues={allIssues} onOpenIssue={openIssue} onApplyFilters={applyFilters} onRefresh={refreshAll} onTagsChanged={refreshTags} onClose={closeIssue} />
+          <IssueDetail issue={selected} detailLoading={showSelectedLoading} username={username} issues={allIssues} onOpenIssue={openIssue} onApplyFilters={applyFilters} onRefresh={refreshAll} onTagsChanged={refreshTags} onClose={closeIssue} />
+        ) : selectedID ? (
+          selectedLoading ? (showSelectedLoading ? <LoadingStatus message="Loading issue detail..." /> : null) : <EmptyState title="Issue not found" description="The selected issue could not be loaded." />
         ) : view === "board" ? (
-          <Board issues={issues} totalIssues={allIssues.length} filters={filters} hasFilters={hasActiveFilters(filters)} username={username} onOpen={openIssue} onRefresh={refresh} onResetFilters={resetFilters} onApplyFilters={applyFilters} />
+          <Board issues={issues} totalIssues={allIssues.length} filters={filters} hasFilters={hasActiveFilters(filters)} loading={boardLoading > 0 || contextLoading > 0} showLoading={showBoardLoading || showContextLoading} username={username} onOpen={openIssue} onRefresh={refresh} onResetFilters={resetFilters} onApplyFilters={applyFilters} />
         ) : view === "hierarchy" ? (
-          <Hierarchy issues={allIssues} onOpen={openIssue} />
+          contextLoading > 0 ? (showContextLoading ? <LoadingStatus message="Loading hierarchy..." /> : null) : <Hierarchy issues={allIssues} onOpen={openIssue} />
         ) : view === "blockers" ? (
-          <Blockers issues={allIssues} onOpen={openIssue} />
+          contextLoading > 0 ? (showContextLoading ? <LoadingStatus message="Loading blockers..." /> : null) : <Blockers issues={allIssues} onOpen={openIssue} />
         ) : (
-          <Profile username={username} onTagsChanged={refreshAll} onLogout={() => {
+          <>
+            {showTagsLoading && <LoadingStatus message="Loading tag context..." />}
+            <Profile username={username} onTagsChanged={refreshAll} onLogout={() => {
             localStorage.removeItem("tala.username");
             setUsername("");
           }} />
+          </>
         )}
       </main>
 
@@ -441,24 +492,36 @@ function ActionStatus({ notice }: { notice: ActionNotice }) {
   </div>;
 }
 
-function Board({ issues, totalIssues, filters, hasFilters, username, onOpen, onRefresh, onResetFilters, onApplyFilters }: { issues: Issue[]; totalIssues: number; filters: IssueFilters; hasFilters: boolean; username: string; onOpen: (id: string) => void; onRefresh: () => Promise<void>; onResetFilters: () => void; onApplyFilters: (filters: IssueFilters) => void }) {
+function LoadingStatus({ message, compact = false }: { message: string; compact?: boolean }) {
+  return <div className={`loading-status ${compact ? "compact" : ""}`} role="status" aria-live="polite">
+    <LoaderCircle size={compact ? 15 : 17} className="loading-spinner" />
+    <span>{message}</span>
+  </div>;
+}
+
+function Board({ issues, totalIssues, filters, hasFilters, loading, showLoading, username, onOpen, onRefresh, onResetFilters, onApplyFilters }: { issues: Issue[]; totalIssues: number; filters: IssueFilters; hasFilters: boolean; loading: boolean; showLoading: boolean; username: string; onOpen: (id: string) => void; onRefresh: () => Promise<void>; onResetFilters: () => void; onApplyFilters: (filters: IssueFilters) => void }) {
   const [draggingID, setDraggingID] = useState("");
   const [actionError, setActionError] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<Status, boolean>>({
     new: false,
     in_progress: false,
     completed: false,
     canceled: false,
   });
+  const showActionLoading = useDelayedBusy(actionBusy);
   async function moveIssue(issueID: string, status: Status) {
     const issue = issues.find((item) => item.id === issueID);
-    if (!issue || issue.status === status) return;
+    if (!issue || issue.status === status || actionBusy) return;
     setActionError("");
+    setActionBusy(true);
     try {
       await api(`/api/issues/${issue.id}`, { method: "PATCH", body: { status }, username });
       await onRefresh();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Unable to update issue status.");
+    } finally {
+      setActionBusy(false);
     }
   }
   function applyStateFilter(state: string) {
@@ -475,7 +538,9 @@ function Board({ issues, totalIssues, filters, hasFilters, username, onOpen, onR
   return (
     <div className="board">
       {actionError && <RequestError message={actionError} onRetry={retryBoardRefresh} onDismiss={() => setActionError("")} compact />}
-      {issues.length === 0 && (
+      {showActionLoading && <LoadingStatus message="Updating issue status..." compact />}
+      {showLoading && <LoadingStatus message="Loading issues..." />}
+      {issues.length === 0 && !loading && (
         totalIssues > 0 && hasFilters ? (
           <section className="empty-state board-empty"><h2>No matching issues</h2><p>Reset filters to return to the full triage board.</p><button className="button" onClick={onResetFilters}>Reset filters</button></section>
         ) : (
@@ -517,7 +582,7 @@ function Board({ issues, totalIssues, filters, hasFilters, username, onOpen, onR
                 event.dataTransfer.setData("text/plain", issue.id);
               }} onDragEnd={() => setDraggingID("")} onOpen={() => onOpen(issue.id)} onStatus={async (next) => {
                 await moveIssue(issue.id, next);
-              }} />
+              }} statusDisabled={actionBusy} />
             ))}
           </div>}
         </section>
@@ -527,7 +592,7 @@ function Board({ issues, totalIssues, filters, hasFilters, username, onOpen, onR
   );
 }
 
-function IssueCard({ issue, dragging, onDragStart, onDragEnd, onOpen, onStatus }: { issue: Issue; dragging: boolean; onDragStart: React.DragEventHandler<HTMLElement>; onDragEnd: React.DragEventHandler<HTMLElement>; onOpen: () => void; onStatus: (status: Status) => Promise<void> }) {
+function IssueCard({ issue, dragging, statusDisabled, onDragStart, onDragEnd, onOpen, onStatus }: { issue: Issue; dragging: boolean; statusDisabled: boolean; onDragStart: React.DragEventHandler<HTMLElement>; onDragEnd: React.DragEventHandler<HTMLElement>; onOpen: () => void; onStatus: (status: Status) => Promise<void> }) {
   return (
     <article className={`issue-card ${issue.blocked ? "blocked" : ""} ${dragging ? "dragging" : ""}`} draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <button className="card-main" onClick={onOpen}>
@@ -546,14 +611,14 @@ function IssueCard({ issue, dragging, onDragStart, onDragEnd, onOpen, onStatus }
           <span aria-label={`${issue.comment_count} comments`}><MessageSquare size={14} />{issue.comment_count}</span>
         </div>
       </button>
-      <select value={issue.status} onChange={(event) => onStatus(event.target.value as Status)} aria-label="Status">
+      <select value={issue.status} disabled={statusDisabled} onChange={(event) => onStatus(event.target.value as Status)} aria-label="Status">
         {statuses.map((status) => <option value={status} key={status}>{statusLabel(status)}</option>)}
       </select>
     </article>
   );
 }
 
-function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onRefresh, onTagsChanged, onClose }: { issue: Issue; username: string; issues: Issue[]; onOpenIssue: (id: string) => void; onApplyFilters: (filters: IssueFilters) => void; onRefresh: () => Promise<void>; onTagsChanged: () => Promise<void>; onClose: () => void }) {
+function IssueDetail({ issue, detailLoading, username, issues, onOpenIssue, onApplyFilters, onRefresh, onTagsChanged, onClose }: { issue: Issue; detailLoading: boolean; username: string; issues: Issue[]; onOpenIssue: (id: string) => void; onApplyFilters: (filters: IssueFilters) => void; onRefresh: () => Promise<void>; onTagsChanged: () => Promise<void>; onClose: () => void }) {
   const [title, setTitle] = useState(issue.title);
   const [tagDraft, setTagDraft] = useState((issue.tags || []).map((tag) => tag.name).join(", "));
   const [assigneeDraft, setAssigneeDraft] = useState(issue.assignee || "");
@@ -569,12 +634,18 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onR
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
   const [commentLoadError, setCommentLoadError] = useState("");
+  const [commentsLoading, setCommentsLoading] = useState(false);
   const [titleError, setTitleError] = useState("");
   const [parentError, setParentError] = useState("");
   const [blockerError, setBlockerError] = useState("");
   const [commentError, setCommentError] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState("");
   const blockerSelectRef = useRef<HTMLSelectElement | null>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const commentRef = useRef<HTMLTextAreaElement | null>(null);
+  const showActionLoading = useDelayedBusy(actionBusy);
+  const showCommentsLoading = useDelayedBusy(commentsLoading);
 
   useEffect(() => setTitle(issue.title), [issue.id, issue.title]);
   useEffect(() => setTagDraft((issue.tags || []).map((tag) => tag.name).join(", ")), [issue.id, issue.tags]);
@@ -595,6 +666,7 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onR
 
   async function loadComments() {
     setCommentLoadError("");
+    setCommentsLoading(true);
     try {
       const res = await fetch(`/api/issues/${issue.id}/comments`);
       const data = await res.json();
@@ -602,6 +674,8 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onR
       setComments(data || []);
     } catch (err) {
       setCommentLoadError(err instanceof Error ? err.message : "Unable to load comments.");
+    } finally {
+      setCommentsLoading(false);
     }
   }
 
@@ -619,7 +693,8 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onR
   async function runAction(fn: () => Promise<void>, setInlineError?: (message: string) => void, feedback: { pending: string; success: string } = { pending: "Saving changes...", success: "Changes saved." }) {
     if (actionBusy) return;
     setActionError("");
-    setActionNotice({ tone: "pending", message: feedback.pending });
+    setActionNotice(null);
+    setPendingMessage(feedback.pending);
     setInlineError?.("");
     setActionBusy(true);
     try {
@@ -635,6 +710,7 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onR
       }
     } finally {
       setActionBusy(false);
+      setPendingMessage("");
     }
   }
 
@@ -666,6 +742,8 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onR
   return (
     <div className="detail">
       {actionError && <div className="field-error"><AlertCircle size={15} />{actionError}</div>}
+      {detailLoading && <LoadingStatus message="Loading latest issue detail..." compact />}
+      {showActionLoading && pendingMessage && <LoadingStatus message={pendingMessage} compact />}
       {actionNotice && <ActionStatus notice={actionNotice} />}
       <section className="detail-hero">
         <div className="card-title-row"><h2>{issue.title}</h2><span>{shortID(issue.id)}</span></div>
@@ -722,7 +800,7 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onR
       <section className="panel">
         <div className="section-title"><h3>Description</h3><Segment value={tab} onChange={setTab} /></div>
         {tab === "source" ? (
-          <textarea className="editor-surface" value={draft} onChange={(e) => {
+          <textarea ref={descriptionRef} className="editor-surface" value={draft} onChange={(e) => {
             setDraft(e.target.value);
             setActionNotice(null);
           }} rows={7} />
@@ -730,6 +808,7 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onR
           <div className="comment-preview editor-preview"><Markdown text={draft || "_No description yet._"} /></div>
         )}
         <div className="detail-actions">
+          <ImageUploadControl username={username} disabled={actionBusy} onUploaded={(markdown) => insertAtCursor(descriptionRef, draft, setDraft, markdown)} />
           <button className="button" disabled={actionBusy} onClick={() => patch({ description_markdown: draft }, { pending: "Saving description...", success: "Description saved." })}>Save description</button>
         </div>
       </section>
@@ -826,14 +905,15 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onR
       <section className="panel">
         <div className="section-title"><h3>Comments</h3><span>{issue.comment_count}</span></div>
         {commentLoadError && <RequestError message={commentLoadError} onRetry={loadComments} onDismiss={() => setCommentLoadError("")} compact />}
+        {showCommentsLoading && <LoadingStatus message="Loading comments..." compact />}
         <div className="comments">
-          {comments.length === 0 ? (
+          {comments.length === 0 && !commentsLoading ? (
             <EmptyState title="No comments yet" description="Add the first update or decision for this issue." compact />
           ) : comments.map((item) => <CommentView key={item.id} comment={item} />)}
         </div>
         <div className="section-title compact-title"><h3>Add comment</h3><Segment value={commentTab} onChange={setCommentTab} /></div>
         {commentTab === "source" ? (
-          <textarea className="editor-surface" value={comment} onChange={(e) => {
+          <textarea ref={commentRef} className="editor-surface" value={comment} onChange={(e) => {
             setComment(e.target.value);
             setCommentError("");
             setActionNotice(null);
@@ -843,6 +923,7 @@ function IssueDetail({ issue, username, issues, onOpenIssue, onApplyFilters, onR
         )}
         {commentError && <div className="field-error inline-error"><AlertCircle size={15} />{commentError}</div>}
         <div className="detail-actions">
+          <ImageUploadControl username={username} disabled={actionBusy} onUploaded={(markdown) => insertAtCursor(commentRef, comment, setComment, markdown)} />
           <button className="button primary" disabled={actionBusy} onClick={() => {
             if (!comment.trim()) {
               setCommentError("Comment body is required.");
@@ -1052,6 +1133,7 @@ function Profile({ username, onLogout, onTagsChanged }: { username: string; onLo
   const [nameError, setNameError] = useState("");
   const [colorError, setColorError] = useState("");
   const [busy, setBusy] = useState(false);
+  const showLoading = useDelayedBusy(busy);
 
   async function refreshTags() {
     const next = await api("/api/tags");
@@ -1093,6 +1175,7 @@ function Profile({ username, onLogout, onTagsChanged }: { username: string; onLo
     <section className="panel tag-admin">
       <div className="section-title"><h3>Tags</h3><span>{tags.length}</span></div>
       {error && <RequestError message={error} onRetry={reloadTags} onDismiss={() => setError("")} compact />}
+      {showLoading && <LoadingStatus message="Loading tag changes..." compact />}
       <div className="inline-controls">
         <input className={nameError ? "invalid" : ""} value={name} onChange={(e) => {
           setName(e.target.value);
@@ -1120,7 +1203,7 @@ function Profile({ username, onLogout, onTagsChanged }: { username: string; onLo
         }
         await api("/api/tags", { method: "POST", username, body: { name: tagName, color: tagColor || null } });
         setName("");
-      })}>{busy ? "Creating..." : "Create tag"}</button>
+      })}>Create tag</button>
       <div className="tag-list">
         {tags.length === 0 && !busy ? (
           <EmptyState title="No tags yet" description="Create a tag to reuse it on issue cards and filters." compact />
@@ -1138,6 +1221,7 @@ function TagEditor({ tag, username, onSaved, onError }: { tag: Tag; username: st
   const [nameError, setNameError] = useState("");
   const [colorError, setColorError] = useState("");
   const [busy, setBusy] = useState(false);
+  const showLoading = useDelayedBusy(busy);
 
   useEffect(() => {
     setName(tag.name);
@@ -1186,8 +1270,9 @@ function TagEditor({ tag, username, onSaved, onError }: { tag: Tag; username: st
       onError("");
     }} ariaLabel={`Color for ${tag.name}`} />
     {colorError && <div className="field-error"><AlertCircle size={15} />{colorError}</div>}
+    {showLoading && <LoadingStatus message="Saving tag..." compact />}
     <div className="tag-actions">
-      <button className="button" disabled={busy} onClick={() => save()}>{busy ? "Saving..." : "Save"}</button>
+      <button className="button" disabled={busy} onClick={() => save()}>Save</button>
       <button className="button ghost" onClick={() => {
         setColor("");
         save(null);
@@ -1275,6 +1360,8 @@ function CreateSheet({ username, issues, onClose, onCreated }: { username: strin
   const [submitError, setSubmitError] = useState("");
   const [submitNotice, setSubmitNotice] = useState<ActionNotice | null>(null);
   const [creating, setCreating] = useState(false);
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const showCreating = useDelayedBusy(creating);
   const parentCandidates = includeSelectedIssue(
     issues.filter((issue) => matchesIssueSearch(issue, parentQuery)),
     parentID,
@@ -1290,10 +1377,11 @@ function CreateSheet({ username, issues, onClose, onCreated }: { username: strin
     {titleError && <div className="field-error"><AlertCircle size={15} />{titleError}</div>}
     <div className="section-title compact-title"><label>Description Markdown</label><Segment value={descriptionTab} onChange={setDescriptionTab} /></div>
     {descriptionTab === "source" ? (
-      <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={6} placeholder="Describe the issue..." />
+      <textarea ref={descriptionRef} value={description} onChange={(e) => setDescription(e.target.value)} rows={6} placeholder="Describe the issue..." />
     ) : (
       <div className="comment-preview"><Markdown text={description || "_No description yet._"} /></div>
     )}
+    <ImageUploadControl username={username} disabled={creating} onUploaded={(markdown) => insertAtCursor(descriptionRef, description, setDescription, markdown)} />
     <label>Priority</label><select value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>{priorities.map((p) => <option key={p}>{p}</option>)}</select>
     <label>Assignee</label><input value={assignee} onChange={(e) => setAssignee(e.target.value)} placeholder="Unassigned" />
     <label>Parent issue</label>
@@ -1306,6 +1394,7 @@ function CreateSheet({ username, issues, onClose, onCreated }: { username: strin
     </select>
     <label>Tags</label><input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="mcp, api" />
     {submitError && <div className="field-error"><AlertCircle size={15} />{submitError}</div>}
+    {showCreating && <LoadingStatus message="Creating issue..." compact />}
     {submitNotice && <ActionStatus notice={submitNotice} />}
     <button className="button primary" disabled={creating} onClick={async () => {
       setTitleError("");
@@ -1313,7 +1402,6 @@ function CreateSheet({ username, issues, onClose, onCreated }: { username: strin
       setSubmitNotice(null);
       if (!title.trim()) return setTitleError("Title is required.");
       setCreating(true);
-      setSubmitNotice({ tone: "pending", message: "Creating issue..." });
       try {
         const issue = await api("/api/issues", { method: "POST", username, body: { title, description_markdown: description, priority, assignee: optionalText(assignee), parent_issue_id: parentID || null, tag_names: splitTags(tags) } });
         setSubmitNotice({ tone: "success", message: "Issue created." });
@@ -1324,7 +1412,7 @@ function CreateSheet({ username, issues, onClose, onCreated }: { username: strin
       } finally {
         setCreating(false);
       }
-    }}><Plus size={16} />{creating ? "Creating..." : "Create issue"}</button>
+    }}><Plus size={16} />Create issue</button>
   </Sheet>;
 }
 
@@ -1341,6 +1429,33 @@ function EmptyState({ title, description, compact = false }: { title: string; de
 
 function CommentView({ comment }: { comment: Comment }) {
   return <article className="comment"><div><strong>{comment.author}</strong><span>{new Date(comment.created_at).toLocaleString()}</span></div><Markdown text={comment.body_markdown} /></article>;
+}
+
+function ImageUploadControl({ username, disabled, onUploaded }: { username: string; disabled?: boolean; onUploaded: (markdown: string) => void }) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const showUploading = useDelayedBusy(uploading);
+  return <div className="image-upload-control">
+    <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={async (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+      setUploading(true);
+      setError("");
+      try {
+        const uploaded = await uploadImage(file, username);
+        onUploaded(uploaded.markdown || `![${file.name}](${uploaded.url})`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unable to upload image.");
+      } finally {
+        setUploading(false);
+      }
+    }} />
+    <button type="button" className="button compact" disabled={disabled || uploading} onClick={() => inputRef.current?.click()}><ImagePlus size={15} />Image</button>
+    {showUploading && <LoadingStatus message="Uploading image..." compact />}
+    {error && <div className="field-error inline-error"><AlertCircle size={15} />{error}</div>}
+  </div>;
 }
 
 function Markdown({ text }: { text: string }) {
@@ -1398,6 +1513,38 @@ async function api(path: string, options: { method?: string; body?: unknown; use
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || "Request failed.");
   return data;
+}
+
+async function uploadImage(file: File, username: string): Promise<UploadedImage> {
+  const form = new FormData();
+  form.append("image", file);
+  const res = await fetch("/api/uploads/images", {
+    method: "POST",
+    headers: username ? { "X-Tala-Username": username } : undefined,
+    body: form
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || "Unable to upload image.");
+  return data;
+}
+
+function insertAtCursor(ref: React.RefObject<HTMLTextAreaElement | null>, value: string, setValue: React.Dispatch<React.SetStateAction<string>>, inserted: string) {
+  const target = ref.current;
+  if (!target) {
+    setValue((current) => current ? `${current}\n\n${inserted}` : inserted);
+    return;
+  }
+  const start = target.selectionStart ?? value.length;
+  const end = target.selectionEnd ?? value.length;
+  const spacerBefore = start > 0 && !value.slice(0, start).endsWith("\n") ? "\n\n" : "";
+  const spacerAfter = end < value.length && !value.slice(end).startsWith("\n") ? "\n\n" : "";
+  const next = `${value.slice(0, start)}${spacerBefore}${inserted}${spacerAfter}${value.slice(end)}`;
+  const cursor = start + spacerBefore.length + inserted.length;
+  setValue(next);
+  window.requestAnimationFrame(() => {
+    target.focus();
+    target.setSelectionRange(cursor, cursor);
+  });
 }
 
 function storedUsername() {
@@ -1537,6 +1684,19 @@ function tagStyle(tag: Tag): React.CSSProperties | undefined {
   const background = tagColorTokens[tag.color] || tag.color;
   const foreground = readableTextColor(background);
   return { backgroundColor: background, color: foreground };
+}
+
+function useDelayedBusy(active: boolean, delayMs = 500) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setVisible(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setVisible(true), delayMs);
+    return () => window.clearTimeout(timeout);
+  }, [active, delayMs]);
+  return visible;
 }
 
 function isValidTagColor(color: string) {

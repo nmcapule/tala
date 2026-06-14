@@ -53,6 +53,12 @@ input:focus, textarea:focus, select:focus { border-color: #8b8173; box-shadow: 0
 .action-status svg { flex: 0 0 auto; }
 .action-status.pending { border-color: #c9bdac; background: #f1eadf; }
 .action-status.success { border-color: #8dcfab; background: #e5f8ef; color: #006c4e; }
+.loading-content { padding-top: 12px; padding-bottom: 0; }
+.loading-status { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; border: 1px solid #d8ccbb; border-radius: 6px; background: #fffdf8; color: #5a534a; padding: 12px 14px; font-size: 13px; font-weight: 750; line-height: 18px; overflow-wrap: anywhere; }
+.loading-status.compact { justify-content: flex-start; border-radius: 4px; padding: 8px 10px; font-size: 12px; line-height: 17px; }
+.loading-status svg { flex: 0 0 auto; }
+.loading-spinner { animation: loading-spin .9s linear infinite; color: #2d2a7a; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
 
 .board { display: grid; gap: 18px; }
 .board-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -92,8 +98,10 @@ input:focus, textarea:focus, select:focus { border-color: #8b8173; box-shadow: 0
 .edit-stack { gap: 12px; }
 .field-action-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-items: stretch; min-width: 0; }
 .field-action-row .button { width: 100%; }
-.detail-actions { display: flex; justify-content: flex-end; gap: 8px; min-width: 0; }
+.detail-actions { display: flex; justify-content: flex-end; gap: 8px; min-width: 0; flex-wrap: wrap; }
 .detail-actions .button { min-width: min(100%, 156px); }
+.image-upload-control { display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.image-upload-control .field-error { flex-basis: 100%; }
 .detail-meta-row select { flex: 1 1 104px; min-width: 0; }
 .detail-meta-row .badge { align-self: center; }
 .section-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -105,6 +113,10 @@ input:focus, textarea:focus, select:focus { border-color: #8b8173; box-shadow: 0
 .segment button.active { background: #2d2a7a; color: #f0efff; }
 .markdown { min-width: 0; color: #191714; line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; }
 .markdown pre, .markdown code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.markdown img { display: block; max-width: 100%; height: auto; border: 1px solid #e8dfd2; border-radius: 4px; margin: 8px 0; }
+.markdown .contains-task-list { padding-left: 0; list-style: none; }
+.markdown .task-list-item { display: flex; align-items: flex-start; gap: 8px; }
+.markdown input[type="checkbox"] { flex: 0 0 auto; width: 16px; height: 16px; min-width: 16px; margin: 4px 0 0; padding: 0; accent-color: #2d2a7a; }
 .editor-surface { min-height: 132px; background: #fffdf8; }
 .editor-preview { min-height: 132px; }
 .markdown :first-child { margin-top: 0; }

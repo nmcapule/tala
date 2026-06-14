@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -37,6 +38,7 @@ func (s *Server) Routes() http.Handler {
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/issues", s.listIssues)
 		r.Post("/issues", s.createIssue)
+		r.Post("/uploads/images", s.uploadImage)
 		r.Get("/issues/{id}", s.getIssue)
 		r.Patch("/issues/{id}", s.updateIssue)
 		r.Get("/issues/{id}/comments", s.listComments)
@@ -48,6 +50,7 @@ func (s *Server) Routes() http.Handler {
 		r.Post("/tags", s.createTag)
 		r.Patch("/tags/{id}", s.updateTag)
 	})
+	r.Get("/uploads/images/{filename}", s.serveUploadedImage)
 	mcpServer := mcp.New(s.service)
 	r.Handle("/mcp", mcpServer)
 	r.NotFound(s.notFound)
@@ -144,6 +147,44 @@ func (s *Server) addComment(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listComments(w http.ResponseWriter, r *http.Request) {
 	comments, err := s.service.ListComments(r.Context(), chi.URLParam(r, "id"))
 	respond(w, comments, err, http.StatusOK)
+}
+
+func (s *Server) uploadImage(w http.ResponseWriter, r *http.Request) {
+	if !requireUsername(w, r) {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, app.MaxImageUploadBytes+1024)
+	if err := r.ParseMultipartForm(app.MaxImageUploadBytes + 1024); err != nil {
+		writeError(w, domain.NewError(domain.CodeValidationError, "Invalid image upload.", "image"))
+		return
+	}
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		writeError(w, domain.NewError(domain.CodeValidationError, "Image file is required.", "image"))
+		return
+	}
+	defer file.Close()
+	name := ""
+	if header != nil {
+		name = header.Filename
+	}
+	uploaded, err := s.service.UploadImage(r.Context(), r.Header.Get("X-Tala-Username"), name, file)
+	respond(w, uploaded, err, http.StatusCreated)
+}
+
+func (s *Server) serveUploadedImage(w http.ResponseWriter, r *http.Request) {
+	image, err := s.service.OpenUploadedImage(chi.URLParam(r, "filename"))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	defer image.File.Close()
+	w.Header().Set("Content-Type", image.ContentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Content-Length", strconv.FormatInt(image.Size, 10))
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.Copy(w, image.File)
 }
 
 func (s *Server) setParent(w http.ResponseWriter, r *http.Request) {

@@ -33,7 +33,7 @@ func main() {
 		static = spaFileServer(http.FS(sub))
 	}
 
-	handler := httpapi.New(app.NewService(st), static).Routes()
+	handler := httpapi.New(app.NewServiceWithUploadDir(st, app.UploadDirForDBPath(*dbPath)), static).Routes()
 	log.Printf("Tala listening on http://%s", *addr)
 	if err := http.ListenAndServe(*addr, handler); err != nil {
 		log.Fatal(err)

@@ -57,6 +57,14 @@ type Comment struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+type UploadedImage struct {
+	URL         string `json:"url"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	Size        int64  `json:"size"`
+	Markdown    string `json:"markdown,omitempty"`
+}
+
 type IssueFilters struct {
 	Status    string `json:"status"`
 	Priority  string `json:"priority"`

@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "tala": {
-      "command": "./scripts/tala-mcp-stdio.sh",
+      "command": "./plugins/tala-project-tracker/scripts/tala-mcp-stdio.sh",
       "args": []
     }
   }

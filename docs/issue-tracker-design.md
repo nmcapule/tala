@@ -203,6 +203,10 @@ All responses use JSON. All mutating endpoints require a username through `X-Tal
 | `PATCH` | `/api/issues/{id}` | Update issue fields. |
 | `POST` | `/api/issues/{id}/comments` | Append a Markdown comment. |
 | `GET` | `/api/issues/{id}/comments` | List comments oldest first. |
+| `POST` | `/api/uploads/images` | Upload an image for Markdown embedding. |
+| `GET` | `/uploads/images/{filename}` | Serve an uploaded image. |
+
+Uploaded images are stored under the configured database directory, such as `.tala/uploads/images` for `.tala/tala.db`. Upload responses include a same-origin URL and Markdown image link; descriptions and comments still persist only Markdown source.
 
 `GET /api/issues` supports these query parameters:
 
@@ -320,6 +324,7 @@ Tools should return structured JSON content plus a short text summary where help
 
 | Tool | Purpose |
 | --- | --- |
+| `image_upload` | Upload a local image file and return a Markdown image link. |
 | `issue_create` | Create an issue with Markdown description, tags, assignee, priority, and optional parent. |
 | `issue_update` | Update issue fields. |
 | `issue_search` | Search/filter issues. |

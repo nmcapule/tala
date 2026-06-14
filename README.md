@@ -53,7 +53,7 @@ Run the Vite frontend separately during frontend work:
 bun run dev
 ```
 
-The Vite dev server proxies `/api` and `/mcp` to `127.0.0.1:8080`, so start the Go server on that port when using the frontend dev server:
+The Vite dev server proxies `/api`, `/mcp`, and `/uploads` to `127.0.0.1:8080`, so start the Go server on that port when using the frontend dev server:
 
 ```sh
 go run ./cmd/tala -addr 127.0.0.1:8080 -db .tala/tala.db
@@ -142,6 +142,13 @@ Comments:
 - `GET /api/issues/{id}/comments`
 - `POST /api/issues/{id}/comments`
 
+Uploads:
+
+- `POST /api/uploads/images`
+- `GET /uploads/images/{filename}`
+
+Image uploads accept multipart form field `image`, require `X-Tala-Username`, and store files under the configured database directory, for example `.tala/uploads/images` when using `.tala/tala.db`. The upload response includes a same-origin URL and ready-to-paste Markdown.
+
 Relationships:
 
 - `PUT /api/issues/{id}/parent`
@@ -170,6 +177,7 @@ Use the HTTP `/mcp` endpoint when running the full Tala server for browser, REST
 
 Tools:
 
+- `image_upload`
 - `issue_create`
 - `issue_update`
 - `issue_search`
@@ -181,6 +189,8 @@ Tools:
 - `issue_assign`
 - `issue_set_status`
 - `issue_set_priority`
+
+Use `image_upload` with a local screenshot path to get a Markdown image link for issue descriptions or comments. This is the preferred agent path for `agent-browser` screenshots.
 
 Resources:
 
