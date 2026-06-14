@@ -85,6 +85,8 @@ The default database path is `.tala/tala.db`. Use `-db`, `TALA_DB`, or the Makef
 
 ## Verification
 
+The v1 release gate is tracked in [docs/v1-release-checklist.md](docs/v1-release-checklist.md).
+
 Run backend tests and frontend typecheck:
 
 ```sh
