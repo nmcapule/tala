@@ -339,6 +339,25 @@ bun -e 'let d=require("/tmp/tala-smoke-issue-get.json"); let r=d.result; if(r.is
 curl -fsS -X POST "$base/mcp" \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"tools/call\",\"params\":{\"name\":\"issue_create\",\"arguments\":{\"username\":\"smoke\",\"title\":\"MCP smoke child $$\",\"description_markdown\":\"Created through MCP **tool**.\",\"priority\":\"P3\",\"parent_issue_id\":\"$parent_id\",\"tag_names\":[\"mcp\",\"smoke\"]}}}" >/tmp/tala-smoke-mcp-create.json
+bun -e 'let d=require("/tmp/tala-smoke-mcp-create.json"); let r=d.result; if(d.error || r?.isError !== false) process.exit(1); let issue=r.structuredContent; if(issue.title !== process.argv[1] || issue.parent_issue_id !== process.argv[2] || !issue.tags?.some(t => t.name === "mcp")) process.exit(1); let mirrored=JSON.parse(r.content?.[1]?.text || "{}"); if(mirrored.id !== issue.id || mirrored.description_markdown !== "Created through MCP **tool**.") process.exit(1)' "MCP smoke child $$" "$parent_id"
+mcp_child_id="$(bun -e 'let d=require("/tmp/tala-smoke-mcp-create.json"); console.log(d.result.structuredContent.id)')"
+
+curl -fsS -X POST "$base/mcp" \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"tools/call\",\"params\":{\"name\":\"issue_search\",\"arguments\":{\"parent_id\":\"$parent_id\",\"tag\":\"mcp\",\"q\":\"MCP smoke child $$\"}}}" >/tmp/tala-smoke-mcp-search.json
+bun -e 'let d=require("/tmp/tala-smoke-mcp-search.json"); let r=d.result; if(d.error || r?.isError !== false || !Array.isArray(r.structuredContent) || !r.structuredContent.some(i => i.id === process.argv[1])) process.exit(1)' "$mcp_child_id"
+
+curl -fsS -X POST "$base/mcp" \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"tools/call\",\"params\":{\"name\":\"issue_set_priority\",\"arguments\":{\"username\":\"smoke\",\"issue_id\":\"$mcp_child_id\",\"priority\":\"P2\"}}}" >/tmp/tala-smoke-mcp-priority.json
+bun -e 'let d=require("/tmp/tala-smoke-mcp-priority.json"); let r=d.result; if(d.error || r?.isError !== false || r.structuredContent?.priority !== "P2") process.exit(1)'
+
+curl -fsS -X POST "$base/mcp" \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
   -d "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"issue_comment\",\"arguments\":{\"username\":\"smoke\",\"issue_id\":\"$issue_id\",\"body_markdown\":\"No ID should not mutate.\"}}}" >/tmp/tala-smoke-mcp-tool-no-id.txt
 test ! -s /tmp/tala-smoke-mcp-tool-no-id.txt
 curl -fsS "$base/api/issues/$issue_id" >/tmp/tala-smoke-no-id-detail.json
@@ -433,6 +452,24 @@ curl -fsS -X POST "$base/mcp" \
   -H 'Accept: application/json, text/event-stream' \
   -d "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"resources/read\",\"params\":{\"uri\":\"tala://issues/$issue_id/blockers\"}}" >/tmp/tala-smoke-blockers.json
 bun -e 'let d=require("/tmp/tala-smoke-blockers.json"); let b=JSON.parse(d.result.contents[0].text); if(!b.unresolved_blockers?.some(i => i.title === "Smoke blocker") || !Array.isArray(b.resolved_blockers) || !Array.isArray(b.unresolved_blocked_by) || !Array.isArray(b.resolved_blocked_by)) process.exit(1)'
+
+curl -fsS -X POST "$base/mcp" \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":35,\"method\":\"resources/read\",\"params\":{\"uri\":\"tala://issues/$issue_id\"}}" >/tmp/tala-smoke-issue-resource.json
+bun -e 'let d=require("/tmp/tala-smoke-issue-resource.json"); let issue=JSON.parse(d.result.contents[0].text); if(issue.id !== process.argv[1] || issue.description_markdown !== "Smoke **markdown**" || !Array.isArray(issue.recent_comments)) process.exit(1)' "$issue_id"
+
+curl -fsS -X POST "$base/mcp" \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":36,\"method\":\"resources/read\",\"params\":{\"uri\":\"tala://issues/$parent_id/tree\"}}" >/tmp/tala-smoke-tree-resource.json
+bun -e 'let d=require("/tmp/tala-smoke-tree-resource.json"); let tree=JSON.parse(d.result.contents[0].text); if(tree.issue?.id !== process.argv[1] || !Array.isArray(tree.children) || !tree.children.some(i => i.title === process.argv[2])) process.exit(1)' "$parent_id" "MCP smoke child $$"
+
+curl -fsS -X POST "$base/mcp" \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":34,\"method\":\"tools/call\",\"params\":{\"name\":\"issue_set_parent\",\"arguments\":{\"username\":\"smoke\",\"issue_id\":\"$mcp_child_id\",\"parent_issue_id\":null}}}" >/tmp/tala-smoke-mcp-clear-parent.json
+bun -e 'let d=require("/tmp/tala-smoke-mcp-clear-parent.json"); let r=d.result; if(d.error || r?.isError !== false || r.structuredContent?.parent_issue_id !== null) process.exit(1)'
 
 curl -fsS -X POST "$base/mcp" \
   -H 'Content-Type: application/json' \
