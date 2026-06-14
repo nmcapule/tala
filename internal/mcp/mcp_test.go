@@ -1224,6 +1224,17 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 		t.Fatalf("expected null id response to include id:null, got %#v", nullIDRaw)
 	}
 
+	stringID := "agent-request-001"
+	stringIDRes := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":"`+stringID+`","method":"tools/list","params":{}}`)
+	if stringIDRes.Code != http.StatusOK {
+		t.Fatalf("expected string id request to return 200, got %d %s", stringIDRes.Code, stringIDRes.Body.String())
+	}
+	var stringIDRaw map[string]any
+	decodeRecorder(t, stringIDRes, &stringIDRaw)
+	if stringIDRaw["id"] != stringID {
+		t.Fatalf("expected string request id to be echoed exactly, got %#v", stringIDRaw)
+	}
+
 	largeID := "9007199254740993"
 	largeIDRes := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":`+largeID+`,"method":"tools/list","params":{}}`)
 	if largeIDRes.Code != http.StatusOK {
@@ -1252,6 +1263,16 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 		if body.Error == nil || body.Error.Code != -32600 {
 			t.Fatalf("%s: expected invalid request error, got %#v", name, body)
 		}
+	}
+
+	badParams := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":"bad-params","method":"resources/read","params":[]}`)
+	if badParams.Code != http.StatusOK {
+		t.Fatalf("expected invalid params response to use HTTP 200, got %d %s", badParams.Code, badParams.Body.String())
+	}
+	var badParamsBody response
+	decodeRecorder(t, badParams, &badParamsBody)
+	if badParamsBody.ID != "bad-params" || badParamsBody.Error == nil || badParamsBody.Error.Code != -32602 {
+		t.Fatalf("expected invalid params error with echoed string id, got %#v", badParamsBody)
 	}
 
 	notification := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)))
