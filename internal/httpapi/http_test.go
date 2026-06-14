@@ -447,6 +447,56 @@ func TestRESTIssueWorkflowAndValidation(t *testing.T) {
 	}
 }
 
+func TestRESTValidationMatrix(t *testing.T) {
+	handler := newTestHandler(t)
+
+	parent := createIssue(t, handler, "Matrix parent", "P2", nil)
+	issue := createIssue(t, handler, "Matrix child", "P2", nil)
+	blocker := createIssue(t, handler, "Matrix blocker", "P2", nil)
+
+	for _, tt := range []struct {
+		name     string
+		method   string
+		path     string
+		username string
+		body     any
+		field    string
+	}{
+		{name: "create missing title", method: http.MethodPost, path: "/api/issues", username: "alex", body: map[string]any{"priority": "P2"}, field: "title"},
+		{name: "create whitespace title", method: http.MethodPost, path: "/api/issues", username: "alex", body: map[string]any{"title": "   ", "priority": "P2"}, field: "title"},
+		{name: "create wrong parent type", method: http.MethodPost, path: "/api/issues", username: "alex", body: map[string]any{"title": "Bad parent type", "parent_issue_id": 42}, field: "parent_issue_id"},
+		{name: "create wrong tag array type", method: http.MethodPost, path: "/api/issues", username: "alex", body: map[string]any{"title": "Bad tags", "tag_names": "api"}, field: "tag_names"},
+		{name: "update whitespace title", method: http.MethodPatch, path: "/api/issues/" + issue.ID, username: "alex", body: map[string]any{"title": "   "}, field: "title"},
+		{name: "update wrong priority type", method: http.MethodPatch, path: "/api/issues/" + issue.ID, username: "alex", body: map[string]any{"priority": 2}, field: "priority"},
+		{name: "update wrong tag element type", method: http.MethodPatch, path: "/api/issues/" + issue.ID, username: "alex", body: map[string]any{"tag_names": []any{"api", 42}}, field: "tag_names"},
+		{name: "comment whitespace body", method: http.MethodPost, path: "/api/issues/" + issue.ID + "/comments", username: "alex", body: map[string]any{"body_markdown": "   "}, field: "body_markdown"},
+		{name: "tag create missing name", method: http.MethodPost, path: "/api/tags", username: "alex", body: map[string]any{"color": "#b5f4d8"}, field: "name"},
+		{name: "tag create whitespace name", method: http.MethodPost, path: "/api/tags", username: "alex", body: map[string]any{"name": "   "}, field: "name"},
+		{name: "tag update whitespace name", method: http.MethodPatch, path: "/api/tags/" + createTag(t, handler, "matrix-tag").ID, username: "alex", body: map[string]any{"name": "   "}, field: "name"},
+		{name: "parent missing field", method: http.MethodPut, path: "/api/issues/" + issue.ID + "/parent", username: "alex", body: map[string]any{}, field: "parent_issue_id"},
+		{name: "blocker whitespace id", method: http.MethodPost, path: "/api/issues/" + issue.ID + "/blockers", username: "alex", body: map[string]any{"blocker_issue_id": "   "}, field: "blocker_issue_id"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			res := doJSON(t, handler, tt.method, tt.path, tt.username, tt.body)
+			assertRESTError(t, res, http.StatusBadRequest, domain.CodeValidationError, tt.field)
+		})
+	}
+
+	setParent := doJSON(t, handler, http.MethodPut, "/api/issues/"+issue.ID+"/parent", "alex", map[string]any{"parent_issue_id": " " + parent.ID + " "})
+	if setParent.Code != http.StatusOK {
+		t.Fatalf("expected whitespace parent id to be trimmed, got %d %s", setParent.Code, setParent.Body.String())
+	}
+	clearParent := doJSON(t, handler, http.MethodPut, "/api/issues/"+issue.ID+"/parent", "alex", map[string]any{"parent_issue_id": "   "})
+	if clearParent.Code != http.StatusOK {
+		t.Fatalf("expected whitespace parent id to clear parent, got %d %s", clearParent.Code, clearParent.Body.String())
+	}
+	addBlocker := doJSON(t, handler, http.MethodPost, "/api/issues/"+issue.ID+"/blockers", "alex", map[string]any{"blocker_issue_id": " " + blocker.ID + " "})
+	if addBlocker.Code != http.StatusOK {
+		t.Fatalf("expected whitespace blocker id to be trimmed, got %d %s", addBlocker.Code, addBlocker.Body.String())
+	}
+	assertIssueFilter(t, handler, "/api/issues?status=+new+&priority=+P2+&parent_id=+&blocked_by=+"+blocker.ID+"+&sort=+title+&order=+asc+", issue.ID)
+}
+
 func TestRESTImageUploadAndServing(t *testing.T) {
 	handler, uploadDir := newTestHandlerWithUploads(t)
 
@@ -1039,6 +1089,31 @@ func createIssue(t *testing.T, handler http.Handler, title, priority string, tag
 	var issue domain.Issue
 	decodeBody(t, res, &issue)
 	return issue
+}
+
+func createTag(t *testing.T, handler http.Handler, name string) domain.Tag {
+	t.Helper()
+	res := doJSON(t, handler, http.MethodPost, "/api/tags", "alex", map[string]any{"name": name})
+	if res.Code != http.StatusCreated {
+		t.Fatalf("create tag failed: %d %s", res.Code, res.Body.String())
+	}
+	var tag domain.Tag
+	decodeBody(t, res, &tag)
+	return tag
+}
+
+func assertRESTError(t *testing.T, res *httptest.ResponseRecorder, wantStatus int, wantCode domain.ErrorCode, wantField string) {
+	t.Helper()
+	if res.Code != wantStatus {
+		t.Fatalf("expected HTTP %d, got %d %s", wantStatus, res.Code, res.Body.String())
+	}
+	var body struct {
+		Error domain.AppError `json:"error"`
+	}
+	decodeBody(t, res, &body)
+	if body.Error.Code != wantCode || body.Error.Field != wantField {
+		t.Fatalf("expected %s/%s error, got %#v", wantCode, wantField, body.Error)
+	}
 }
 
 func assertIssueFilter(t *testing.T, handler http.Handler, path, wantID string) {
