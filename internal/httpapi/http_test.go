@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -495,6 +496,32 @@ func TestRESTValidationMatrix(t *testing.T) {
 		t.Fatalf("expected whitespace blocker id to be trimmed, got %d %s", addBlocker.Code, addBlocker.Body.String())
 	}
 	assertIssueFilter(t, handler, "/api/issues?status=+new+&priority=+P2+&parent_id=+&blocked_by=+"+blocker.ID+"+&sort=+title+&order=+asc+", issue.ID)
+}
+
+func TestRESTErrorResponsesStayStructuredAndSanitized(t *testing.T) {
+	appErr := domain.NewError(domain.CodeValidationError, "Stable validation message.", "title")
+	wrapped := fmt.Errorf("repository wrapper should not leak: %w", appErr)
+	appRes := httptest.NewRecorder()
+	writeError(appRes, wrapped)
+	assertRESTError(t, appRes, http.StatusBadRequest, domain.CodeValidationError, "title")
+	var appBody struct {
+		Error domain.AppError `json:"error"`
+	}
+	decodeBody(t, appRes, &appBody)
+	if appBody.Error.Message != appErr.Message || strings.Contains(appBody.Error.Message, "repository wrapper") {
+		t.Fatalf("REST app error leaked wrapper text: %#v", appBody.Error)
+	}
+
+	internalRes := httptest.NewRecorder()
+	writeError(internalRes, fmt.Errorf("driver secret detail"))
+	assertRESTError(t, internalRes, http.StatusInternalServerError, domain.CodeInternal, "")
+	var internalBody struct {
+		Error domain.AppError `json:"error"`
+	}
+	decodeBody(t, internalRes, &internalBody)
+	if internalBody.Error.Message != "Internal server error." || strings.Contains(internalBody.Error.Message, "driver secret") {
+		t.Fatalf("REST internal error was not sanitized: %#v", internalBody.Error)
+	}
 }
 
 func TestRESTImageUploadAndServing(t *testing.T) {

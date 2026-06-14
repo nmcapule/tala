@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -663,7 +664,8 @@ func (s *Server) issueDetails(ctx context.Context, issues []domain.Issue) ([]dom
 
 func toolResult(summary string, structured any, err error) (any, *rpcError) {
 	if err != nil {
-		if appErr, ok := err.(*domain.AppError); ok {
+		var appErr *domain.AppError
+		if errors.As(err, &appErr) {
 			return toolErrorResult(appErr), nil
 		}
 		return nil, appToRPC(err)
@@ -973,7 +975,8 @@ func resourceTemplates() []map[string]any {
 }
 
 func appToRPC(err error) *rpcError {
-	if appErr, ok := err.(*domain.AppError); ok {
+	var appErr *domain.AppError
+	if errors.As(err, &appErr) {
 		return &rpcError{Code: -32000, Message: appErr.Message, Data: appErr}
 	}
 	return &rpcError{Code: -32603, Message: "Internal error"}

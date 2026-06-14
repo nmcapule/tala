@@ -728,6 +728,44 @@ func TestMCPResourceReadNotFoundUsesResourceErrorCode(t *testing.T) {
 	}
 }
 
+func TestMCPWrappedAppErrorsRemainStructured(t *testing.T) {
+	appErr := domain.NewError(domain.CodeValidationError, "Stable validation message.", "title")
+	wrapped := fmt.Errorf("storage wrapper should not leak: %w", appErr)
+
+	result, rpcErr := toolResult("", nil, wrapped)
+	if rpcErr != nil {
+		t.Fatalf("expected wrapped app error to stay a tool result, got rpc error %#v", rpcErr)
+	}
+	raw, err := json.Marshal(map[string]any{"result": result})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatal(err)
+	}
+	assertToolAppError(t, body, domain.CodeValidationError, "title")
+	toolBody := body["result"].(map[string]any)
+	content := toolBody["content"].([]any)
+	summary := content[0].(map[string]any)["text"].(string)
+	if summary != appErr.Message || strings.Contains(summary, "storage wrapper") {
+		t.Fatalf("tool error summary leaked wrapper text: %q", summary)
+	}
+
+	rpcAppErr := appToRPC(wrapped)
+	if rpcAppErr.Code != -32000 || rpcAppErr.Message != appErr.Message {
+		t.Fatalf("expected wrapped app rpc error to keep app message/code, got %#v", rpcAppErr)
+	}
+	data := rpcAppErr.Data.(*domain.AppError)
+	if data.Code != appErr.Code || data.Field != appErr.Field || data.Message != appErr.Message {
+		t.Fatalf("expected wrapped app rpc data to keep app error, got %#v", data)
+	}
+	internal := appToRPC(fmt.Errorf("driver secret detail"))
+	if internal.Code != -32603 || internal.Message != "Internal error" || internal.Data != nil {
+		t.Fatalf("expected generic errors to be sanitized, got %#v", internal)
+	}
+}
+
 func TestMCPRelationshipValidationReportsRequestFields(t *testing.T) {
 	server := newTestServer(t)
 
