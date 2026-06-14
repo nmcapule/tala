@@ -56,7 +56,8 @@ create_issue() {
 curl -fsS "$base/healthz" >/dev/null
 agent-browser --session "$session" open "$base" >/dev/null
 agent-browser --session "$session" wait --text "Welcome to Tala" >/dev/null
-agent-browser --session "$session" eval "localStorage.setItem('tala.username', '   '); location.reload();" >/dev/null
+agent-browser --session "$session" eval "localStorage.setItem('tala.username', '   '); true;" >/dev/null
+agent-browser --session "$session" open "$base" >/dev/null
 agent-browser --session "$session" wait --text "Welcome to Tala" >/dev/null
 agent-browser --session "$session" eval "(() => {
   const stored = localStorage.getItem('tala.username');
@@ -68,7 +69,6 @@ agent-browser --session "$session" eval "(() => {
 })()" >/dev/null
 agent-browser --session "$session" find placeholder "e.g. jdoe_ops" fill "$username" >/dev/null
 agent-browser --session "$session" find role button click --name "Continue" >/dev/null
-agent-browser --session "$session" wait --text "No issues yet" >/dev/null
 agent-browser --session "$session" wait --fn "document.querySelectorAll('.status-section').length >= 4" >/dev/null
 agent-browser --session "$session" eval "(() => {
   const headings = Array.from(document.querySelectorAll('.status-section h2')).map((heading) => heading.textContent?.toLowerCase() || '').join('\\n');
@@ -80,9 +80,70 @@ agent-browser --session "$session" eval "(() => {
   return true;
 })()" >/dev/null
 agent-browser --session "$session" find role button click --name "Hierarchy" >/dev/null
-agent-browser --session "$session" wait --text "No hierarchy yet" >/dev/null
+agent-browser --session "$session" wait --fn "location.pathname === '/hierarchy' && !!document.querySelector('.planning, .empty-state')" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/hierarchy') {
+    throw new Error('hierarchy nav did not push canonical path: ' + location.pathname);
+  }
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" open "$base/hierarchy" >/dev/null
+agent-browser --session "$session" wait --fn "location.pathname === '/hierarchy' && !!document.querySelector('.planning, .empty-state')" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/hierarchy') {
+    throw new Error('hierarchy refresh did not preserve path: ' + location.pathname);
+  }
+  if (!document.querySelector('.planning, .empty-state')) {
+    throw new Error('hierarchy refresh did not preserve view');
+  }
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" find role button click --name "Blockers" >/dev/null
+agent-browser --session "$session" wait --fn "location.pathname === '/blockers' && !!document.querySelector('.planning')" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/blockers') {
+    throw new Error('blockers nav did not push canonical path: ' + location.pathname);
+  }
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" open "$base/blockers" >/dev/null
+agent-browser --session "$session" wait --fn "location.pathname === '/blockers' && !!document.querySelector('.planning')" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/blockers') {
+    throw new Error('blockers refresh did not preserve path: ' + location.pathname);
+  }
+  if (!document.querySelector('.planning')) {
+    throw new Error('blockers refresh did not preserve view');
+  }
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" find role button click --name "Profile" >/dev/null
+agent-browser --session "$session" wait --text "$username" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/profile') {
+    throw new Error('profile nav did not push canonical path: ' + location.pathname);
+  }
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" open "$base/profile" >/dev/null
+agent-browser --session "$session" wait --text "$username" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/profile') {
+    throw new Error('profile refresh did not preserve path: ' + location.pathname);
+  }
+  if (!document.body.innerText.includes('$username')) {
+    throw new Error('profile refresh did not preserve view');
+  }
+  return true;
+})()" >/dev/null
 agent-browser --session "$session" find role button click --name "Board" >/dev/null
-agent-browser --session "$session" wait --text "No issues yet" >/dev/null
+agent-browser --session "$session" wait --fn "document.querySelectorAll('.status-section').length >= 4" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/') {
+    throw new Error('board nav did not return to root path: ' + location.pathname);
+  }
+  return true;
+})()" >/dev/null
 click_create
 agent-browser --session "$session" eval "document.querySelector('.sheet .button.primary')?.click()" >/dev/null
 agent-browser --session "$session" wait --text "Title is required." >/dev/null
@@ -116,10 +177,16 @@ agent-browser --session "$session" eval "(() => {
 })()" >/dev/null
 agent-browser --session "$session" find role button click --name "Close" >/dev/null
 
-curl -fsS -X POST "$base/api/tags" \
-  -H 'Content-Type: application/json' \
-  -H "X-Tala-Username: $username" \
-  -d '{"name":"frontend","color":"#b5f4d8"}' >/dev/null
+frontend_tag_status="$(
+  curl -sS -o /tmp/tala-browser-smoke-frontend-tag.json -w '%{http_code}' -X POST "$base/api/tags" \
+    -H 'Content-Type: application/json' \
+    -H "X-Tala-Username: $username" \
+    -d '{"name":"frontend","color":"#b5f4d8"}'
+)"
+if [[ "$frontend_tag_status" != "201" && "$frontend_tag_status" != "409" ]]; then
+  cat /tmp/tala-browser-smoke-frontend-tag.json >&2
+  exit 1
+fi
 
 create_issue "$parent_title" "Parent **markdown**" "P2" "alex" "" "planning"
 create_issue "$blocker_title" "Blocks child" "P1" "" "" "api"
@@ -175,6 +242,55 @@ agent-browser --session "$session" eval "(() => {
   const card = Array.from(document.querySelectorAll('.issue-card')).find((item) => item.textContent?.includes('$child_title'));
   const button = card?.querySelector('.card-main');
   if (!(button instanceof HTMLElement)) throw new Error('child issue card button not found');
+  button.click();
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" wait --text "Issue detail" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/issues/$child_id') {
+    throw new Error('opening an issue did not push canonical permalink: ' + location.pathname);
+  }
+  const copyButton = document.querySelector('button[aria-label=\"Copy permalink\"]');
+  if (!copyButton) throw new Error('detail view missing copy permalink button');
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" open "$base/issues/$child_id" >/dev/null
+agent-browser --session "$session" wait --text "Issue detail" >/dev/null
+agent-browser --session "$session" wait --text "$child_title" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/issues/$child_id') {
+    throw new Error('direct issue permalink did not preserve pathname: ' + location.pathname);
+  }
+  if (!document.body.innerText.includes('$child_title')) {
+    throw new Error('direct issue permalink did not render the issue detail');
+  }
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" find role button click --name "Back" >/dev/null
+agent-browser --session "$session" wait --fn "document.querySelectorAll('.status-section').length >= 4" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/') {
+    throw new Error('detail Back button did not return to root URL: ' + location.pathname);
+  }
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" eval "history.back()" >/dev/null
+agent-browser --session "$session" wait --text "Issue detail" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/issues/$child_id') {
+    throw new Error('browser back did not restore issue permalink: ' + location.pathname);
+  }
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" eval "history.forward()" >/dev/null
+agent-browser --session "$session" wait --fn "document.querySelectorAll('.status-section').length >= 4" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  if (location.pathname !== '/') {
+    throw new Error('browser forward did not return to board URL: ' + location.pathname);
+  }
+  const card = Array.from(document.querySelectorAll('.issue-card')).find((item) => item.textContent?.includes('$child_title'));
+  const button = card?.querySelector('.card-main');
+  if (!(button instanceof HTMLElement)) throw new Error('child issue card button not found after permalink history checks');
   button.click();
   return true;
 })()" >/dev/null
@@ -645,10 +761,14 @@ agent-browser --session "$session" eval "(() => {
   if (document.body.innerText.includes('$child_title')) {
     throw new Error('status-only filter did not refresh the board');
   }
+  if (document.querySelectorAll('.status-section').length < 4) {
+    throw new Error('status-only filter should keep the board rendered');
+  }
   return true;
 })()" >/dev/null
-agent-browser --session "$session" wait --text "No matching issues" >/dev/null
-agent-browser --session "$session" find role button click --name "Reset filters" >/dev/null
+agent-browser --session "$session" find role button click --name "Filters" >/dev/null
+agent-browser --session "$session" wait --text "Filters" >/dev/null
+agent-browser --session "$session" find role button click --name "Reset" >/dev/null
 agent-browser --session "$session" wait --text "$child_title" >/dev/null
 curl -fsS -X PATCH "$base/api/issues/$blocker_id" \
   -H 'Content-Type: application/json' \

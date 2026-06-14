@@ -5,14 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: "cmd/tala/static",
-    emptyOutDir: true,
-    rollupOptions: {
-      output: {
-        entryFileNames: "assets/index.js",
-        chunkFileNames: "assets/[name].js",
-        assetFileNames: "assets/[name][extname]"
-      }
-    }
+    emptyOutDir: true
   },
   server: {
     proxy: {

@@ -57,10 +57,28 @@ func spaFileServer(root http.FileSystem) http.Handler {
 		file, err := root.Open(path)
 		if err == nil {
 			_ = file.Close()
+			setStaticCacheHeaders(w, path)
 			files.ServeHTTP(w, r)
 			return
 		}
+		if strings.HasPrefix(path, "assets/") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
 		r.URL.Path = "/"
 		files.ServeHTTP(w, r)
 	})
+}
+
+func setStaticCacheHeaders(w http.ResponseWriter, path string) {
+	if path == "index.html" {
+		w.Header().Set("Cache-Control", "no-store")
+		return
+	}
+	if strings.HasPrefix(path, "assets/") {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-cache")
 }

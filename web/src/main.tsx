@@ -102,17 +102,20 @@ const tagColorChoices = [
 ];
 
 function App() {
+  const initialView = viewFromLocation();
   const [username, setUsername] = useState(storedUsername);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
-  const [selectedID, setSelectedID] = useState<string | null>(null);
-  const [view, setView] = useState<View>("board");
+  const [selectedID, setSelectedID] = useState<string | null>(() => issueIDFromLocation());
+  const [view, setView] = useState<View>(initialView);
   const [filterOpen, setFilterOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [filters, setFilters] = useState(emptyFilters());
   const [tags, setTags] = useState<Tag[]>([]);
   const [error, setError] = useState("");
+  const [permalinkCopied, setPermalinkCopied] = useState(false);
+  const lastListView = useRef<View>(initialView);
 
   async function refreshBoard() {
     const params = new URLSearchParams();
@@ -152,9 +155,42 @@ function App() {
     setFilters(emptyFilters());
   }
 
+  function openIssue(issueID: string) {
+    setSelectedID(issueID);
+    setPermalinkCopied(false);
+    const nextPath = issuePath(issueID);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, "", nextPath);
+    }
+  }
+
+  function closeIssue() {
+    setSelectedID(null);
+    setPermalinkCopied(false);
+    const nextPath = viewPath(lastListView.current);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, "", nextPath);
+    }
+  }
+
+  async function copyPermalink() {
+    if (!selectedID) return;
+    const url = new URL(issuePath(selectedID), window.location.origin);
+    await writeClipboard(url.toString());
+    setPermalinkCopied(true);
+    window.setTimeout(() => setPermalinkCopied(false), 1800);
+  }
+
   function showView(nextView: View) {
     setSelectedID(null);
+    setSelectedIssue(null);
+    setPermalinkCopied(false);
     setView(nextView);
+    lastListView.current = nextView;
+    const nextPath = viewPath(nextView);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, "", nextPath);
+    }
   }
 
   async function openFilterSheet() {
@@ -191,6 +227,21 @@ function App() {
   useEffect(() => {
     refreshTags().catch((err) => setError(err instanceof Error ? err.message : "Unable to load tags."));
   }, [allIssues.length, view]);
+
+  useEffect(() => {
+    function syncRoute() {
+      const issueID = issueIDFromLocation();
+      setSelectedID(issueID);
+      setPermalinkCopied(false);
+      if (!issueID) {
+        const nextView = viewFromLocation();
+        setView(nextView);
+        lastListView.current = nextView;
+      }
+    }
+    window.addEventListener("popstate", syncRoute);
+    return () => window.removeEventListener("popstate", syncRoute);
+  }, []);
 
   useEffect(() => {
     if (!selectedID) {
@@ -240,7 +291,7 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         {selected ? (
-          <button className="icon-button" onClick={() => setSelectedID(null)} aria-label="Back"><ArrowLeft size={20} /></button>
+          <button className="icon-button" onClick={closeIssue} aria-label="Back"><ArrowLeft size={20} /></button>
         ) : (
           <div className="avatar"><User size={18} /></div>
         )}
@@ -249,6 +300,7 @@ function App() {
           <p>{selected ? selected.id.slice(0, 12) : "Local issue coordination"}</p>
         </div>
         <div className="top-actions">
+          {selected && <button className="icon-button" onClick={() => copyPermalink().catch((err) => setError(err instanceof Error ? err.message : "Unable to copy permalink."))} aria-label={permalinkCopied ? "Copied permalink" : "Copy permalink"} title={permalinkCopied ? "Copied" : "Copy permalink"}><Link2 size={20} /></button>}
           {!selected && <button className="icon-button" onClick={openFilterSheet} aria-label="Filters"><Filter size={20} /></button>}
           {!selected && <button className="icon-button primary" onClick={openCreateSheet} aria-label="Create issue"><Plus size={20} /></button>}
         </div>
@@ -258,13 +310,13 @@ function App() {
 
       <main className="content">
         {selected ? (
-          <IssueDetail issue={selected} username={username} issues={allIssues} onOpenIssue={setSelectedID} onRefresh={refreshAll} onTagsChanged={refreshTags} onClose={() => setSelectedID(null)} />
+          <IssueDetail issue={selected} username={username} issues={allIssues} onOpenIssue={openIssue} onRefresh={refreshAll} onTagsChanged={refreshTags} onClose={closeIssue} />
         ) : view === "board" ? (
-          <Board issues={issues} totalIssues={allIssues.length} hasFilters={hasActiveFilters(filters)} username={username} onOpen={setSelectedID} onRefresh={refresh} onResetFilters={resetFilters} />
+          <Board issues={issues} totalIssues={allIssues.length} hasFilters={hasActiveFilters(filters)} username={username} onOpen={openIssue} onRefresh={refresh} onResetFilters={resetFilters} />
         ) : view === "hierarchy" ? (
-          <Hierarchy issues={allIssues} onOpen={setSelectedID} />
+          <Hierarchy issues={allIssues} onOpen={openIssue} />
         ) : view === "blockers" ? (
-          <Blockers issues={allIssues} onOpen={setSelectedID} />
+          <Blockers issues={allIssues} onOpen={openIssue} />
         ) : (
           <Profile username={username} onTagsChanged={refreshAll} onLogout={() => {
             localStorage.removeItem("tala.username");
@@ -283,7 +335,7 @@ function App() {
       {filterOpen && <FilterSheet filters={filters} tags={tags} issues={allIssues} setFilters={setFilters} onClose={() => setFilterOpen(false)} />}
       {createOpen && <CreateSheet username={username} issues={allIssues} onClose={() => setCreateOpen(false)} onCreated={(issue) => {
         setCreateOpen(false);
-        setSelectedID(issue.id);
+        openIssue(issue.id);
         refreshAll();
       }} />}
     </div>
@@ -1078,6 +1130,37 @@ function emptyFilters() {
   return { q: "", status: "", assignee: "", priority: "", tag: "", parent_id: "", blocked_by: "" };
 }
 
+function issueIDFromLocation() {
+  const match = window.location.pathname.match(/^\/issues\/([^/]+)\/?$/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+function issuePath(issueID: string) {
+  return `/issues/${encodeURIComponent(issueID)}`;
+}
+
+function viewFromLocation(): View {
+  switch (window.location.pathname.replace(/\/+$/, "") || "/") {
+    case "/hierarchy":
+      return "hierarchy";
+    case "/blockers":
+      return "blockers";
+    case "/profile":
+      return "profile";
+    default:
+      return "board";
+  }
+}
+
+function viewPath(view: View) {
+  return view === "board" ? "/" : `/${view}`;
+}
+
 function hasActiveFilters(filters: Record<string, string>) {
   return Object.values(filters).some(Boolean);
 }
@@ -1097,6 +1180,27 @@ function splitTags(value: string) {
 function optionalText(value: string) {
   const trimmed = value.trim();
   return trimmed || null;
+}
+
+async function writeClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    if (!document.execCommand("copy")) {
+      throw new Error("Copy command was not available.");
+    }
+  } finally {
+    document.body.removeChild(textarea);
+  }
 }
 
 function relationshipTitles(issues: Issue[] | undefined, fallback: string) {
