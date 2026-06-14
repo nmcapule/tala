@@ -15,26 +15,21 @@ Always use this repo's own Tala skill as the durable project work ledger:
 - Skill: `tala-project-tracker` from the plugin
 - Database: `.tala/tala.db` under the project root
 - Codex MCP: the repo-local plugin starts `tala` over stdio against the workspace `.tala/tala.db`
-- HTTP server URL for browser/helper workflows: `http://127.0.0.1:8081`
-- HTTP server command for browser/helper workflows: `make own-db`
+- HTTP server URL for browser workflows: `http://127.0.0.1:8081`
+- HTTP server command for browser workflows: `make own-db`
 
 Use the Tala skill for planning, implementation tracking, progress updates, and
-handoff notes. Before using the helper script or reading `.tala/tala.db`
-directly, check for the repo-local Tala MCP tools. If the `mcp__tala` tools are
-not already visible, use tool discovery/search for "tala issue search" or
-"tala project tracker MCP", then prefer `mcp__tala.issue_search`,
-`mcp__tala.issue_get`, and related `mcp__tala` tools when available.
-
-Only fall back to
-`plugins/tala-project-tracker/skills/tala-project-tracker/scripts/tala_helper.py`
-if the Tala MCP tools cannot be discovered or fail. Only read `.tala/tala.db`
-directly for diagnostics, verification, or when both MCP and helper workflows
-are unavailable. Do not use another Tala database unless the user explicitly
-requests it.
+handoff notes. Before reading `.tala/tala.db` directly, check for the
+repo-local Tala MCP tools. If the `mcp__tala` tools are not already visible,
+use tool discovery/search for "tala issue search" or "tala project tracker
+MCP", then use `mcp__tala.issue_search`, `mcp__tala.issue_get`, and related
+`mcp__tala` tools. Only read `.tala/tala.db` directly for diagnostics or
+verification when MCP tools are unavailable. Do not use another Tala database
+unless the user explicitly requests it.
 
 Before finishing any work that creates temporary issues, tags, comments, or
 other test records in this repo's `.tala/tala.db`, clean them up or document why they
-must remain. This applies especially to browser/helper smoke tests that create
+must remain. This applies especially to browser smoke tests that create
 records with names such as `browser_smoke_*`, `detail-smoke-*`,
 `profile-smoke-*`, `overflow-*`, or other run-specific markers. Run a post-check
 against `.tala/tala.db` to confirm temporary entries are gone, while preserving real
