@@ -9,7 +9,9 @@ description: Use Tala as a project-local issue tracker for planning, effort mana
 
 Use Tala as the durable project work ledger. Before meaningful project work, consult Tala. During work, keep the relevant issue updated. At interruption or handoff, leave a comment that lets another agent resume.
 
-Prefer a configured Tala MCP server named `tala` when available. When installed through the repo-local Codex plugin, the plugin starts that server over stdio against the current workspace's `.tala/tala.db`; it does not require `make own-db`. If MCP tools are not available, use `scripts/tala_helper.py` from this skill against the project-local HTTP server.
+Prefer a configured Tala MCP server named `tala` when available. When installed through the repo-local Codex plugin, the plugin starts that server over stdio against the current workspace's `.tala/tala.db`; it does not require `make own-db`. Before using the helper script or reading `.tala/tala.db` directly, check whether the MCP tools are already visible. If they are not, use tool discovery/search for "tala issue search" or "tala project tracker MCP", then prefer `mcp__tala.issue_search`, `mcp__tala.issue_get`, and related `mcp__tala` tools when available.
+
+Only use `scripts/tala_helper.py` from this skill against the project-local HTTP server if the Tala MCP tools cannot be discovered or fail. Only read `.tala/tala.db` directly for diagnostics, verification, or when both MCP and helper workflows are unavailable.
 
 ## Project Setup
 
@@ -27,8 +29,8 @@ Prefer a configured Tala MCP server named `tala` when available. When installed 
 
 1. Identify the task intent: feature, bug, investigation, release, docs, or tech debt.
 2. Search Tala before creating anything.
-   - MCP: use `issue_search` with a concise query.
-   - Helper: `python <skill>/scripts/tala_helper.py search --q "<query>"`
+   - MCP: first discover the Tala MCP tools if needed, then use `mcp__tala.issue_search` with a concise query.
+   - Helper fallback: `python <skill>/scripts/tala_helper.py search --q "<query>"`
 3. Reuse an existing issue when it clearly matches.
 4. Create a new issue only when no good match exists.
 5. For complex work, ensure a parent issue exists and create child issues for independently resumable work. Use nested children only when a child itself needs multiple implementation phases.

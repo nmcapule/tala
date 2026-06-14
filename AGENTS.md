@@ -19,10 +19,18 @@ Always use this repo's own Tala skill as the durable project work ledger:
 - HTTP server command for browser/helper workflows: `make own-db`
 
 Use the Tala skill for planning, implementation tracking, progress updates, and
-handoff notes. Prefer a configured Tala MCP server when available. If MCP is
-unavailable, fall back to
-`plugins/tala-project-tracker/skills/tala-project-tracker/scripts/tala_helper.py`.
-Do not use another Tala database unless the user explicitly requests it.
+handoff notes. Before using the helper script or reading `.tala/tala.db`
+directly, check for the repo-local Tala MCP tools. If the `mcp__tala` tools are
+not already visible, use tool discovery/search for "tala issue search" or
+"tala project tracker MCP", then prefer `mcp__tala.issue_search`,
+`mcp__tala.issue_get`, and related `mcp__tala` tools when available.
+
+Only fall back to
+`plugins/tala-project-tracker/skills/tala-project-tracker/scripts/tala_helper.py`
+if the Tala MCP tools cannot be discovered or fail. Only read `.tala/tala.db`
+directly for diagnostics, verification, or when both MCP and helper workflows
+are unavailable. Do not use another Tala database unless the user explicitly
+requests it.
 
 Before finishing any work that creates temporary issues, tags, comments, or
 other test records in this repo's `.tala/tala.db`, clean them up or document why they
