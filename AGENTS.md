@@ -13,7 +13,7 @@ Always use this repo's own Tala skill as the durable project work ledger:
 
 - Skill: `skills/tala-project-tracker`
 - Database: `tala.db` at the project root
-- Codex MCP: project `.codex/config.toml` auto-starts `go run ./cmd/tala-mcp-stdio -db tala.db`
+- Codex MCP: project `.codex/config.toml` auto-starts `.codex/tala-mcp-stdio.sh -db tala.db` from the project root
 - HTTP server URL for browser/helper workflows: `http://127.0.0.1:8081`
 - HTTP server command for browser/helper workflows: `make own-db`
 
@@ -21,6 +21,14 @@ Use the Tala skill for planning, implementation tracking, progress updates, and
 handoff notes. Prefer a configured Tala MCP server when available. If MCP is
 unavailable, fall back to `skills/tala-project-tracker/scripts/tala_helper.py`.
 Do not use another Tala database unless the user explicitly requests it.
+
+Before finishing any work that creates temporary issues, tags, comments, or
+other test records in this repo's `tala.db`, clean them up or document why they
+must remain. This applies especially to browser/helper smoke tests that create
+records with names such as `browser_smoke_*`, `detail-smoke-*`,
+`profile-smoke-*`, `overflow-*`, or other run-specific markers. Run a post-check
+against `tala.db` to confirm temporary entries are gone, while preserving real
+project issues, roadmap items, and durable bug/task records.
 
 ## Product Design References
 

@@ -8,13 +8,38 @@ parent_title="Browser smoke parent $$"
 blocker_title="Browser smoke blocker $$"
 child_title="Browser smoke child $$"
 renamed_child_title="Browser smoke child renamed $$"
+long_wrap_title="Browser-smoke-long-wrap-$$-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 external_parent_title="Browser smoke external parent $$"
 detail_tag="detail-smoke-$$"
 profile_tag="profile-smoke-$$"
 short_hex_tag="short-hex-smoke-$$"
+parent_tag="parent-smoke-$$"
+blocker_tag="blocker-smoke-$$"
+overflow_tag_a="overflow-a-$$"
+overflow_tag_b="overflow-b-$$"
+overflow_tag_c="overflow-c-$$"
 
 cleanup() {
   agent-browser --session "$session" close >/dev/null 2>&1 || true
+  if [[ -n "${TALA_SMOKE_DB:-}" && -f "${TALA_SMOKE_DB:-}" ]] && command -v sqlite3 >/dev/null 2>&1; then
+    sqlite3 "$TALA_SMOKE_DB" <<SQL >/dev/null
+PRAGMA foreign_keys = ON;
+BEGIN;
+DELETE FROM issues WHERE created_by = '$username';
+DELETE FROM tags
+WHERE name IN (
+  '$detail_tag',
+  '$profile_tag',
+  '$short_hex_tag',
+  '$parent_tag',
+  '$blocker_tag',
+  '$overflow_tag_a',
+  '$overflow_tag_b',
+  '$overflow_tag_c'
+);
+COMMIT;
+SQL
+  fi
 }
 trap cleanup EXIT
 
@@ -47,13 +72,14 @@ create_issue() {
     agent-browser --session "$session" select "select:nth-of-type(2)" "$parent_label" >/dev/null
   fi
   agent-browser --session "$session" find placeholder "mcp, api" fill "$tags" >/dev/null
-  agent-browser --session "$session" click ".sheet .button.primary" >/dev/null
+  agent-browser --session "$session" eval "document.querySelector('.sheet .button.primary')?.click(); true;" >/dev/null
   agent-browser --session "$session" wait --text "Issue detail" >/dev/null
   agent-browser --session "$session" find role button click --name "Back" >/dev/null
   agent-browser --session "$session" wait --text "$title" >/dev/null
 }
 
 curl -fsS "$base/healthz" >/dev/null
+agent-browser --session "$session" set viewport 390 844 >/dev/null
 agent-browser --session "$session" open "$base" >/dev/null
 agent-browser --session "$session" wait --text "Welcome to Tala" >/dev/null
 agent-browser --session "$session" eval "localStorage.setItem('tala.username', '   '); true;" >/dev/null
@@ -136,6 +162,26 @@ agent-browser --session "$session" eval "(() => {
   }
   return true;
 })()" >/dev/null
+agent-browser --session "$session" network route "$base/api/tags" --abort >/dev/null
+agent-browser --session "$session" open "$base/profile" >/dev/null
+agent-browser --session "$session" wait --text "Retry" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  const retryButtons = Array.from(document.querySelectorAll('button')).filter((button) => button.textContent?.trim() === 'Retry');
+  if (retryButtons.length === 0) {
+    throw new Error('request error did not expose a retry action');
+  }
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" network unroute "$base/api/tags" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  const tagAdmin = document.querySelector('.tag-admin');
+  const retry = Array.from(tagAdmin?.querySelectorAll('button') || []).find((button) => button.textContent?.trim() === 'Retry');
+  if (!retry) throw new Error('tag panel retry button not found');
+  retry.click();
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" wait --fn "!document.querySelector('.tag-admin')?.innerText.includes('Failed to fetch')" >/dev/null
+agent-browser --session "$session" eval "Array.from(document.querySelectorAll('button')).filter((button) => button.textContent?.trim() === 'Dismiss').forEach((button) => button.click()); true;" >/dev/null
 agent-browser --session "$session" find role button click --name "Board" >/dev/null
 agent-browser --session "$session" wait --fn "document.querySelectorAll('.status-section').length >= 4" >/dev/null
 agent-browser --session "$session" eval "(() => {
@@ -188,9 +234,9 @@ if [[ "$frontend_tag_status" != "201" && "$frontend_tag_status" != "409" ]]; the
   exit 1
 fi
 
-create_issue "$parent_title" "Parent **markdown**" "P2" "alex" "" "planning"
-create_issue "$blocker_title" "Blocks child" "P1" "" "" "api"
-create_issue "$child_title" "Child body <script>window.talaUnsafeMarkdown = true</script> [unsafe](javascript:alert(1))" "P0" "sam" "$parent_title" "frontend, overflow-a-$$, overflow-b-$$, overflow-c-$$"
+create_issue "$parent_title" "Parent **markdown**" "P2" "alex" "" "$parent_tag"
+create_issue "$blocker_title" "Blocks child" "P1" "" "" "$blocker_tag"
+create_issue "$child_title" "Child body <script>window.talaUnsafeMarkdown = true</script> [unsafe](javascript:alert(1))" "P0" "sam" "$parent_title" "frontend, $overflow_tag_a, $overflow_tag_b, $overflow_tag_c"
 
 child_id="$(
   curl -fsS "$base/api/issues?q=Browser%20smoke%20child%20$$" | json_field '[0].id'
@@ -204,6 +250,10 @@ parent_id="$(
   curl -fsS "$base/api/issues?q=Browser%20smoke%20parent%20$$" | json_field '[0].id'
 )"
 test -n "$parent_id"
+curl -fsS -X POST "$base/api/issues" \
+  -H 'Content-Type: application/json' \
+  -H "X-Tala-Username: $username" \
+  -d "{\"title\":\"$long_wrap_title\",\"description_markdown\":\"Long wrapping child for mobile detail polish.\",\"priority\":\"P2\",\"parent_issue_id\":\"$child_id\",\"tag_names\":[\"frontend\"]}" >/dev/null
 
 agent-browser --session "$session" wait --fn "document.querySelectorAll('.status-section').length >= 4" >/dev/null
 agent-browser --session "$session" eval "(() => {
@@ -234,6 +284,10 @@ agent-browser --session "$session" eval "(() => {
   }
   if (!childCard.textContent?.includes('$username')) {
     throw new Error('issue card did not show creator metadata');
+  }
+  const badges = Array.from(childCard.querySelectorAll('.meta-row .badge')).map((item) => item.textContent?.trim());
+  if (!badges.includes('in progress')) {
+    throw new Error('issue card did not show visible status badge: ' + badges.join(', '));
   }
   return true;
 })()" >/dev/null
@@ -295,10 +349,24 @@ agent-browser --session "$session" eval "(() => {
   return true;
 })()" >/dev/null
 agent-browser --session "$session" wait --text "Issue detail" >/dev/null
+agent-browser --session "$session" wait --text "$long_wrap_title" >/dev/null
 agent-browser --session "$session" eval "(() => {
   const navText = document.querySelector('.bottom-nav')?.textContent || '';
   for (const label of ['Board', 'Hierarchy', 'Blockers', 'Profile']) {
     if (!navText.includes(label)) throw new Error('detail view missing persistent bottom nav: ' + label);
+  }
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  const root = document.documentElement;
+  if (root.scrollWidth > root.clientWidth + 1) {
+    throw new Error('mobile detail view overflows horizontally: ' + root.scrollWidth + ' > ' + root.clientWidth);
+  }
+  const childSection = Array.from(document.querySelectorAll('.relationship-list')).find((section) => section.textContent?.includes('Children'));
+  const longLink = Array.from(childSection?.querySelectorAll('.relationship-link') || []).find((button) => button.textContent?.includes('$long_wrap_title'));
+  if (!longLink) throw new Error('long child relationship link not found');
+  if (longLink.scrollWidth > longLink.clientWidth + 1 && getComputedStyle(longLink).whiteSpace === 'nowrap') {
+    throw new Error('long relationship title is still forced onto one line');
   }
   return true;
 })()" >/dev/null
@@ -339,6 +407,12 @@ agent-browser --session "$session" eval "(() => {
 agent-browser --session "$session" wait --text "$renamed_child_title" >/dev/null
 curl -fsS "$base/api/issues/$child_id" >/tmp/tala-browser-smoke-title.json
 bun -e 'let d=require("/tmp/tala-browser-smoke-title.json"); if(d.title !== process.argv[1]) { console.error("title did not save: " + d.title); process.exit(1) }' "$renamed_child_title"
+agent-browser --session "$session" eval "(() => {
+  if (!document.body.innerText.includes('Title saved.')) {
+    throw new Error('detail edit did not show success feedback after saving title');
+  }
+  return true;
+})()" >/dev/null
 agent-browser --session "$session" eval "(() => {
   const hero = document.querySelector('.detail-hero');
   const titleInput = hero?.querySelector('input');
@@ -449,6 +523,10 @@ agent-browser --session "$session" eval "(() => {
   if (!labels.includes('$parent_title') || labels.includes('$blocker_title')) {
     throw new Error('parent search did not narrow parent candidates');
   }
+  const feedback = Array.from(document.querySelectorAll('.picker-feedback')).map((item) => item.textContent || '').join('\\n');
+  if (!feedback.includes('Showing') || !feedback.includes('candidates')) {
+    throw new Error('parent picker did not show candidate count feedback: ' + feedback);
+  }
   return true;
 })()" >/dev/null
 agent-browser --session "$session" find placeholder "Search parent issues..." fill "$blocker_title" >/dev/null
@@ -459,6 +537,10 @@ agent-browser --session "$session" eval "(() => {
   if (!parent) throw new Error('parent select not found after changing search');
   const selected = Array.from(parent.options).find((option) => option.value === '$parent_id');
   if (!selected) throw new Error('selected parent should remain visible when search text changes');
+  const feedback = Array.from(document.querySelectorAll('.picker-feedback')).map((item) => item.textContent || '').join('\\n');
+  if (!feedback.includes('Selected parent stays available while filtering.')) {
+    throw new Error('parent picker did not explain preserved selected parent: ' + feedback);
+  }
   return true;
 })()" >/dev/null
 agent-browser --session "$session" find placeholder "Search blocker issues..." fill "Blocks child" >/dev/null
@@ -479,6 +561,10 @@ agent-browser --session "$session" eval "(() => {
   if (!blocker) throw new Error('blocker select not found');
   const option = Array.from(blocker.options).find((item) => item.value === '$blocker_id');
   if (!option) throw new Error('blocker option not found');
+  const groups = Array.from(blocker.querySelectorAll('optgroup')).map((group) => group.label).join('\\n');
+  if (!groups.includes('Unresolved blockers (') || !groups.includes('Completed or canceled (')) {
+    throw new Error('blocker picker did not show grouped candidate counts: ' + groups);
+  }
   blocker.value = option.value;
   blocker.dispatchEvent(new Event('input', { bubbles: true }));
   blocker.dispatchEvent(new Event('change', { bubbles: true }));
@@ -527,15 +613,9 @@ agent-browser --session "$session" eval "(() => {
   return true;
 })()" >/dev/null
 agent-browser --session "$session" find role button click --name "Back" >/dev/null
-agent-browser --session "$session" wait --text "$child_title" >/dev/null
-agent-browser --session "$session" eval "(() => {
-  const card = Array.from(document.querySelectorAll('.issue-card')).find((item) => item.textContent?.includes('$child_title'));
-  const button = card?.querySelector('.card-main');
-  if (!(button instanceof HTMLElement)) throw new Error('child issue card button not found');
-  button.click();
-  return true;
-})()" >/dev/null
+agent-browser --session "$session" open "$base/issues/$child_id" >/dev/null
 agent-browser --session "$session" wait --text "Issue detail" >/dev/null
+agent-browser --session "$session" wait --text "$child_title" >/dev/null
 agent-browser --session "$session" eval "new Promise((resolve, reject) => {
   const commentPanel = Array.from(document.querySelectorAll('.panel')).find((panel) => panel.textContent?.includes('Add comment'));
   if (!commentPanel) return reject(new Error('comment composer not found'));
@@ -602,8 +682,8 @@ agent-browser --session "$session" eval "(() => {
 })()" >/dev/null
 agent-browser --session "$session" find role button click --name "Back" >/dev/null
 agent-browser --session "$session" wait --text "$child_title" >/dev/null
-agent-browser --session "$session" find role button click --name "Blockers" >/dev/null
-agent-browser --session "$session" wait --text "Blocking" >/dev/null
+agent-browser --session "$session" open "$base/blockers" >/dev/null
+agent-browser --session "$session" wait --fn "location.pathname === '/blockers' && !!document.querySelector('.planning')" >/dev/null
 agent-browser --session "$session" eval "(() => {
   const text = document.body.innerText;
   if (!text.includes('Blocked by $blocker_title') || !text.includes('Blocking $child_title')) {
@@ -611,7 +691,7 @@ agent-browser --session "$session" eval "(() => {
   }
   return true;
 })()" >/dev/null
-agent-browser --session "$session" find role button click --name "Hierarchy" >/dev/null
+agent-browser --session "$session" open "$base/hierarchy" >/dev/null
 agent-browser --session "$session" wait --text "$parent_title" >/dev/null
 agent-browser --session "$session" eval "(() => {
   const node = Array.from(document.querySelectorAll('.tree-node-button')).find((item) => item.textContent?.includes('$child_title'));
@@ -621,7 +701,7 @@ agent-browser --session "$session" eval "(() => {
   }
   return true;
 })()" >/dev/null
-agent-browser --session "$session" find role button click --name "Board" >/dev/null
+agent-browser --session "$session" open "$base" >/dev/null
 agent-browser --session "$session" wait --text "$child_title" >/dev/null
 agent-browser --session "$session" find role button click --name "Filters" >/dev/null
 agent-browser --session "$session" wait --text "Filters" >/dev/null
@@ -644,6 +724,25 @@ agent-browser --session "$session" find role button click --name "Reset" >/dev/n
 agent-browser --session "$session" wait --text "$child_title" >/dev/null
 agent-browser --session "$session" find role button click --name "Filters" >/dev/null
 agent-browser --session "$session" wait --text "Filters" >/dev/null
+agent-browser --session "$session" wait --text "No filters active" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  const sheetText = document.querySelector('.sheet')?.textContent || '';
+  if (!sheetText.includes('Relationships') || !sheetText.includes('Sort')) {
+    throw new Error('filter drawer section headings not found');
+  }
+  return true;
+})()" >/dev/null
+agent-browser --session "$session" find placeholder "Markdown, title, or keyword" fill "$child_title" >/dev/null
+agent-browser --session "$session" wait --text "1 active filter" >/dev/null
+agent-browser --session "$session" find role button click --name "Clear" >/dev/null
+agent-browser --session "$session" wait --text "No filters active" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  const input = document.querySelector('.sheet input[placeholder=\"Markdown, title, or keyword\"]');
+  if (!(input instanceof HTMLInputElement) || input.value !== '') {
+    throw new Error('filter clear did not empty pending search text');
+  }
+  return true;
+})()" >/dev/null
 agent-browser --session "$session" find placeholder "Markdown, title, or keyword" fill "$child_title" >/dev/null
 agent-browser --session "$session" find role button click --name "Apply" >/dev/null
 agent-browser --session "$session" wait --text "$child_title" >/dev/null
@@ -687,8 +786,8 @@ agent-browser --session "$session" eval "(() => {
   }
   return true;
 })()" >/dev/null
-agent-browser --session "$session" find role button click --name "Blockers" >/dev/null
-agent-browser --session "$session" wait --text "Blocking" >/dev/null
+agent-browser --session "$session" open "$base/blockers" >/dev/null
+agent-browser --session "$session" wait --fn "location.pathname === '/blockers' && !!document.querySelector('.planning')" >/dev/null
 agent-browser --session "$session" eval "(() => {
   const text = document.body.innerText;
   if (!text.includes('Blocked by $blocker_title') || !text.includes('Blocking $child_title')) {
@@ -696,7 +795,7 @@ agent-browser --session "$session" eval "(() => {
   }
   return true;
 })()" >/dev/null
-agent-browser --session "$session" find role button click --name "Board" >/dev/null
+agent-browser --session "$session" open "$base" >/dev/null
 agent-browser --session "$session" wait --text "$child_title" >/dev/null
 agent-browser --session "$session" find role button click --name "Filters" >/dev/null
 agent-browser --session "$session" wait --text "Filters" >/dev/null
@@ -754,8 +853,19 @@ agent-browser --session "$session" find role button click --name "Reset" >/dev/n
 agent-browser --session "$session" wait --text "$child_title" >/dev/null
 agent-browser --session "$session" find role button click --name "Filters" >/dev/null
 agent-browser --session "$session" wait --text "Filters" >/dev/null
-agent-browser --session "$session" select ".sheet select" "completed" >/dev/null
-agent-browser --session "$session" find role button click --name "Apply" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  const labels = Array.from(document.querySelectorAll('.sheet label'));
+  const label = labels.find((item) => item.textContent?.trim() === 'Status');
+  const select = label?.nextElementSibling;
+  if (!(select instanceof HTMLSelectElement)) throw new Error('status filter select not found');
+  select.value = 'completed';
+  select.dispatchEvent(new Event('input', { bubbles: true }));
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+  const apply = Array.from(document.querySelectorAll('.sheet .button.primary')).find((item) => item.textContent?.trim() === 'Apply');
+  if (!apply) throw new Error('filter apply button not found');
+  apply.click();
+  return true;
+})()" >/dev/null
 agent-browser --session "$session" wait 500 >/dev/null
 agent-browser --session "$session" eval "(() => {
   if (document.body.innerText.includes('$child_title')) {
@@ -774,7 +884,7 @@ curl -fsS -X PATCH "$base/api/issues/$blocker_id" \
   -H 'Content-Type: application/json' \
   -H "X-Tala-Username: $username" \
   -d '{"status":"completed"}' >/dev/null
-agent-browser --session "$session" find role button click --name "Blockers" >/dev/null
+agent-browser --session "$session" open "$base/blockers" >/dev/null
 agent-browser --session "$session" wait --text "Resolved dependencies" >/dev/null
 agent-browser --session "$session" eval "(() => {
   const activeText = Array.from(document.querySelectorAll('.dependency')).map((item) => item.textContent || '').join('\\n');
@@ -787,11 +897,14 @@ agent-browser --session "$session" eval "(() => {
   }
   return true;
 })()" >/dev/null
-agent-browser --session "$session" find role button click --name "Profile" >/dev/null
+agent-browser --session "$session" open "$base/profile" >/dev/null
 agent-browser --session "$session" wait --text "$username" >/dev/null
 agent-browser --session "$session" find role button click --name "Create tag" >/dev/null
 agent-browser --session "$session" wait --text "Tag name is required." >/dev/null
 agent-browser --session "$session" find placeholder "Tag name" fill "$profile_tag" >/dev/null
+agent-browser --session "$session" fill "input[aria-label='Tag color']" "not-a-color" >/dev/null
+agent-browser --session "$session" find role button click --name "Create tag" >/dev/null
+agent-browser --session "$session" wait --text "Use a color token or hex value like #b5f4d8." >/dev/null
 agent-browser --session "$session" find role button click --name "Use tertiary-container" >/dev/null
 agent-browser --session "$session" find role button click --name "Create tag" >/dev/null
 agent-browser --session "$session" wait --text "$profile_tag" >/dev/null
