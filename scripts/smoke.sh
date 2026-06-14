@@ -35,6 +35,16 @@ null_body_code="$(
 test "$null_body_code" = "400"
 bun -e 'let d=require("/tmp/tala-smoke-null-body.json"); if(d.error?.code !== "validation_error" || d.error?.field !== "body") process.exit(1)'
 
+trailing_body_code="$(
+  curl -sS -o /tmp/tala-smoke-trailing-body.json -w '%{http_code}' \
+    -X POST "$base/api/issues" \
+    -H 'Content-Type: application/json' \
+    -H "X-Tala-Username: $creator" \
+    -d '{"title":"Trailing body","priority":"P2"} {}'
+)"
+test "$trailing_body_code" = "400"
+bun -e 'let d=require("/tmp/tala-smoke-trailing-body.json"); if(d.error?.code !== "validation_error" || d.error?.field !== "body") process.exit(1)'
+
 invalid_color_code="$(
   curl -sS -o /tmp/tala-smoke-invalid-tag-color.json -w '%{http_code}' \
     -X POST "$base/api/tags" \
@@ -62,6 +72,16 @@ token_tag="$(
     -d "{\"name\":\"token color smoke $$\",\"color\":\"secondary-container\"}"
 )"
 printf '%s' "$token_tag" | bun -e 'let s=""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { let d=JSON.parse(s); if(d.color !== "secondary-container") process.exit(1); })'
+token_tag_id="$(printf '%s' "$token_tag" | json_field '.id')"
+
+curl -fsS "$base/api/tags" >/tmp/tala-smoke-tags.json
+bun -e 'let d=require("/tmp/tala-smoke-tags.json"); if(!d.some(t => t.id === process.argv[1] && t.color === "secondary-container")) process.exit(1)' "$token_tag_id"
+
+curl -fsS -X PATCH "$base/api/tags/$token_tag_id" \
+  -H 'Content-Type: application/json' \
+  -H "X-Tala-Username: $creator" \
+  -d "{\"name\":\"token color smoke renamed $$\",\"color\":null}" >/tmp/tala-smoke-tag-update.json
+bun -e 'let d=require("/tmp/tala-smoke-tag-update.json"); if(d.name !== process.argv[1] || d.color !== null) process.exit(1)' "token color smoke renamed $$"
 
 issue="$(
   curl -fsS -X POST "$base/api/issues" \
@@ -70,6 +90,31 @@ issue="$(
     -d '{"title":"Smoke issue","description_markdown":"Smoke **markdown**","priority":"P2","assignee":"sam","tag_names":["smoke","api"]}'
 )"
 issue_id="$(printf '%s' "$issue" | json_field '.id')"
+
+unsupported_issue_delete_code="$(
+  curl -sS -o /tmp/tala-smoke-unsupported-issue-delete.json -w '%{http_code}' \
+    -X DELETE "$base/api/issues/$issue_id"
+)"
+test "$unsupported_issue_delete_code" = "405"
+bun -e 'let d=require("/tmp/tala-smoke-unsupported-issue-delete.json"); if(d.error?.code !== "validation_error" || d.error?.field !== "method") process.exit(1)'
+
+unsupported_comment_patch_code="$(
+  curl -sS -o /tmp/tala-smoke-unsupported-comment-patch.json -w '%{http_code}' \
+    -X PATCH "$base/api/issues/$issue_id/comments/comment_missing" \
+    -H 'Content-Type: application/json' \
+    -H "X-Tala-Username: $creator" \
+    -d '{"body_markdown":"comments are append-only"}'
+)"
+test "$unsupported_comment_patch_code" = "404"
+bun -e 'let d=require("/tmp/tala-smoke-unsupported-comment-patch.json"); if(d.error?.code !== "not_found" || d.error?.field !== "path") process.exit(1)'
+
+parent="$(
+  curl -fsS -X POST "$base/api/issues" \
+    -H 'Content-Type: application/json' \
+    -H 'X-Tala-Username: smoke' \
+    -d '{"title":"Smoke parent","priority":"P3","tag_names":["smoke"]}'
+)"
+parent_id="$(printf '%s' "$parent" | json_field '.id')"
 
 invalid_status_filter_code="$(
   curl -sS -o /tmp/tala-smoke-invalid-status-filter.json -w '%{http_code}' \
@@ -119,6 +164,12 @@ curl -fsS -X POST "$base/api/issues/$issue_id/blockers" \
   -H 'X-Tala-Username: smoke' \
   -d "{\"blocker_issue_id\":\"$blocker_id\"}" >/dev/null
 
+curl -fsS -X PUT "$base/api/issues/$issue_id/parent" \
+  -H 'Content-Type: application/json' \
+  -H 'X-Tala-Username: smoke' \
+  -d "{\"parent_issue_id\":\"$parent_id\"}" >/tmp/tala-smoke-set-parent.json
+bun -e 'let d=require("/tmp/tala-smoke-set-parent.json"); if(d.parent_issue_id !== process.argv[1]) process.exit(1)' "$parent_id"
+
 invalid_parent_code="$(
   curl -sS -o /tmp/tala-smoke-invalid-parent.json -w '%{http_code}' \
     -X PUT "$base/api/issues/$issue_id/parent" \
@@ -143,6 +194,16 @@ curl -fsS -X POST "$base/api/issues/$issue_id/comments" \
   -H 'Content-Type: application/json' \
   -H 'X-Tala-Username: smoke' \
   -d '{"body_markdown":"Smoke comment."}' >/dev/null
+
+curl -fsS "$base/api/issues/$issue_id/comments" >/tmp/tala-smoke-comments.json
+bun -e 'let d=require("/tmp/tala-smoke-comments.json"); if(d.length !== 1 || d[0].body_markdown !== "Smoke comment.") process.exit(1)'
+
+missing_comments_code="$(
+  curl -sS -o /tmp/tala-smoke-missing-comments.json -w '%{http_code}' \
+    "$base/api/issues/issue_missing/comments"
+)"
+test "$missing_comments_code" = "404"
+bun -e 'let d=require("/tmp/tala-smoke-missing-comments.json"); if(d.error?.code !== "not_found" || d.error?.field !== "issue_id") process.exit(1)'
 
 null_comment_code="$(
   curl -sS -o /tmp/tala-smoke-null-comment.json -w '%{http_code}' \
@@ -210,6 +271,9 @@ bun -e 'let d=require("/tmp/tala-smoke-filter-id.json"); if(d.length !== 1 || d[
 curl -fsS "$base/api/issues?blocker_of=$issue_id" >/tmp/tala-smoke-filter-blocker-of.json
 bun -e 'let d=require("/tmp/tala-smoke-filter-blocker-of.json"); if(!d.some(i => i.id === process.argv[1])) process.exit(1)' "$blocker_id"
 
+curl -fsS "$base/api/issues?parent_id=$parent_id" >/tmp/tala-smoke-filter-parent.json
+bun -e 'let d=require("/tmp/tala-smoke-filter-parent.json"); if(!d.some(i => i.id === process.argv[1])) process.exit(1)' "$issue_id"
+
 curl -fsS "$base/api/issues?state=blocked" >/tmp/tala-smoke-filter-state-blocked.json
 bun -e 'let d=require("/tmp/tala-smoke-filter-state-blocked.json"); if(!d.some(i => i.id === process.argv[1])) process.exit(1)' "$issue_id"
 
@@ -230,6 +294,12 @@ curl -fsS -X PATCH "$base/api/issues/$issue_id" \
   -H 'X-Tala-Username: smoke' \
   -d '{"assignee":null}' >/tmp/tala-smoke-clear.json
 bun -e 'let d=require("/tmp/tala-smoke-clear.json"); if(d.assignee !== null) process.exit(1)'
+
+curl -fsS -X PUT "$base/api/issues/$issue_id/parent" \
+  -H 'Content-Type: application/json' \
+  -H 'X-Tala-Username: smoke' \
+  -d '{"parent_issue_id":null}' >/tmp/tala-smoke-clear-parent.json
+bun -e 'let d=require("/tmp/tala-smoke-clear-parent.json"); if(d.parent_issue_id !== null) process.exit(1)'
 
 curl -fsS -X POST "$base/mcp" \
   -H 'Content-Type: application/json' \
