@@ -846,7 +846,7 @@ func tools() []map[string]any {
 				strProp("username", "Required username for the mutation."),
 				strProp("title", "Required issue title."),
 				strProp("description_markdown", "Markdown source for the issue description."),
-				enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}),
+				enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}, "Issue priority."),
 				nullableStrProp("assignee", "Optional assignee username."),
 				arrayProp("tag_names", "Tag names to attach, creating missing tags."),
 				nullableStrProp("parent_issue_id", "Optional parent issue ID."),
@@ -856,24 +856,24 @@ func tools() []map[string]any {
 		tool("issue_update", "Update issue fields.", schema(issueMutationProps(
 			strProp("title", "Issue title."),
 			strProp("description_markdown", "Markdown source for the issue description."),
-			enumProp("status", []string{"new", "in_progress", "completed", "canceled"}),
-			enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}),
+			enumProp("status", []string{"new", "in_progress", "completed", "canceled"}, "Issue status."),
+			enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}, "Issue priority."),
 			nullableStrProp("assignee", "Optional assignee username; null clears it."),
 			arrayProp("tag_names", "Replacement tag names."),
 		), []string{"username", "issue_id"})),
 		tool("issue_search", "Search and filter issues.", schema(props(
-			enumProp("status", []string{"new", "in_progress", "completed", "canceled"}),
-			enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}),
+			enumProp("status", []string{"new", "in_progress", "completed", "canceled"}, "Filter by issue status."),
+			enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}, "Filter by issue priority."),
 			strProp("assignee", "Assignee username."),
 			strProp("tag", "Tag name."),
 			strProp("id", "Exact issue ID."),
 			strProp("parent_id", "Parent issue ID."),
 			strProp("blocked_by", "Blocker issue ID."),
 			strProp("blocker_of", "Issue ID blocked by returned issues."),
-			enumProp("state", []string{"open", "blocked", "done"}),
+			enumProp("state", []string{"open", "blocked", "done"}, "Filter by derived issue state."),
 			strProp("q", "Text query over title, Markdown description, comments, tags, ID, creator, assignee, status, and priority."),
-			enumProp("sort", []string{"priority", "updated_at", "created_at", "title", "status"}),
-			enumProp("order", []string{"asc", "desc"}),
+			enumProp("sort", []string{"priority", "updated_at", "created_at", "title", "status"}, "Sort field."),
+			enumProp("order", []string{"asc", "desc"}, "Sort order."),
 		), nil)),
 		tool("issue_get", "Fetch issue detail.", schema(props(strProp("issue_id", "Issue ID.")), []string{"issue_id"})),
 		tool("issue_comment", "Append a Markdown comment.", schema(issueMutationProps(strProp("body_markdown", "Required Markdown comment body.")), []string{"username", "issue_id", "body_markdown"})),
@@ -881,8 +881,8 @@ func tools() []map[string]any {
 		tool("issue_add_blocker", "Add a blocker issue.", schema(issueMutationProps(strProp("blocker_issue_id", "Issue ID that blocks this issue.")), []string{"username", "issue_id", "blocker_issue_id"})),
 		tool("issue_remove_blocker", "Remove a blocker issue.", schema(issueMutationProps(strProp("blocker_issue_id", "Blocker issue ID to remove.")), []string{"username", "issue_id", "blocker_issue_id"})),
 		tool("issue_assign", "Set or clear assignee.", schema(issueMutationProps(nullableStrProp("assignee", "Assignee username, or null to clear.")), []string{"username", "issue_id", "assignee"})),
-		tool("issue_set_status", "Change issue status.", schema(issueMutationProps(enumProp("status", []string{"new", "in_progress", "completed", "canceled"})), []string{"username", "issue_id", "status"})),
-		tool("issue_set_priority", "Change issue priority.", schema(issueMutationProps(enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"})), []string{"username", "issue_id", "priority"})),
+		tool("issue_set_status", "Change issue status.", schema(issueMutationProps(enumProp("status", []string{"new", "in_progress", "completed", "canceled"}, "Issue status.")), []string{"username", "issue_id", "status"})),
+		tool("issue_set_priority", "Change issue priority.", schema(issueMutationProps(enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}, "Issue priority.")), []string{"username", "issue_id", "priority"})),
 	}
 }
 
@@ -930,8 +930,8 @@ func arrayProp(name, description string) map[string]any {
 	return map[string]any{name: map[string]any{"type": "array", "items": map[string]string{"type": "string"}, "description": description}}
 }
 
-func enumProp(name string, values []string) map[string]any {
-	return map[string]any{name: map[string]any{"type": "string", "enum": values}}
+func enumProp(name string, values []string, description string) map[string]any {
+	return map[string]any{name: map[string]any{"type": "string", "enum": values, "description": description}}
 }
 
 func resources() []map[string]any {

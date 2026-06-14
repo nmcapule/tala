@@ -131,8 +131,23 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	assertNullableToolProp(t, toolList, "issue_set_parent", "parent_issue_id")
 	assertRequiredToolProp(t, toolList, "issue_assign", "assignee")
 	assertRequiredToolProp(t, toolList, "issue_set_parent", "parent_issue_id")
+	assertRequiredToolProps(t, toolList, map[string][]string{
+		"image_upload":         {"username", "path"},
+		"issue_create":         {"username", "title"},
+		"issue_update":         {"username", "issue_id"},
+		"issue_search":         nil,
+		"issue_get":            {"issue_id"},
+		"issue_comment":        {"username", "issue_id", "body_markdown"},
+		"issue_set_parent":     {"username", "issue_id", "parent_issue_id"},
+		"issue_add_blocker":    {"username", "issue_id", "blocker_issue_id"},
+		"issue_remove_blocker": {"username", "issue_id", "blocker_issue_id"},
+		"issue_assign":         {"username", "issue_id", "assignee"},
+		"issue_set_status":     {"username", "issue_id", "status"},
+		"issue_set_priority":   {"username", "issue_id", "priority"},
+	})
 	assertRequiredUsername(t, toolList)
 	assertToolSchemasUseScalarTypes(t, toolList)
+	assertToolPropertiesHaveDescriptions(t, toolList)
 	assertToolPropDescriptionContains(t, toolList, "issue_search", "q", "comments", "tags", "creator", "priority")
 	assertToolPropDescriptionContains(t, toolList, "issue_search", "blocker_of", "blocked")
 	assertRequiredToolProp(t, toolList, "image_upload", "path")
@@ -891,6 +906,42 @@ func assertRequiredUsername(t *testing.T, tools []any) {
 	}
 }
 
+func assertRequiredToolProps(t *testing.T, tools []any, want map[string][]string) {
+	t.Helper()
+	seen := map[string]bool{}
+	for _, item := range tools {
+		tool := item.(map[string]any)
+		name := tool["name"].(string)
+		expected, ok := want[name]
+		if !ok {
+			t.Fatalf("unexpected tool %s", name)
+		}
+		seen[name] = true
+		schema := tool["inputSchema"].(map[string]any)
+		required := []any{}
+		if raw, ok := schema["required"]; ok {
+			required = raw.([]any)
+		}
+		if len(required) != len(expected) {
+			t.Fatalf("expected %s required fields %v, got %#v", name, expected, required)
+		}
+		requiredSet := map[string]bool{}
+		for _, field := range required {
+			requiredSet[field.(string)] = true
+		}
+		for _, field := range expected {
+			if !requiredSet[field] {
+				t.Fatalf("expected %s required fields %v, got %#v", name, expected, required)
+			}
+		}
+	}
+	for name := range want {
+		if !seen[name] {
+			t.Fatalf("expected tool %s not found", name)
+		}
+	}
+}
+
 func assertToolSchemasUseScalarTypes(t *testing.T, tools []any) {
 	t.Helper()
 	for _, item := range tools {
@@ -915,6 +966,23 @@ func assertSchemaTypesAreScalar(t *testing.T, path string, value any) {
 	case []any:
 		for i, child := range typed {
 			assertSchemaTypesAreScalar(t, fmt.Sprintf("%s[%d]", path, i), child)
+		}
+	}
+}
+
+func assertToolPropertiesHaveDescriptions(t *testing.T, tools []any) {
+	t.Helper()
+	for _, item := range tools {
+		tool := item.(map[string]any)
+		name := tool["name"].(string)
+		schema := tool["inputSchema"].(map[string]any)
+		props := schema["properties"].(map[string]any)
+		for propName, rawProp := range props {
+			prop := rawProp.(map[string]any)
+			description, ok := prop["description"].(string)
+			if !ok || strings.TrimSpace(description) == "" {
+				t.Fatalf("expected %s.%s to include a description, got %#v", name, propName, prop)
+			}
 		}
 	}
 }
