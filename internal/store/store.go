@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -62,12 +63,28 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Migrate(ctx context.Context) error {
-	schema, err := migrationsFS.ReadFile("migrations/001_init.sql")
+	entries, err := migrationsFS.ReadDir("migrations")
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, string(schema))
-	return err
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+		names = append(names, "migrations/"+entry.Name())
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		schema, err := migrationsFS.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		if _, err := s.db.ExecContext(ctx, string(schema)); err != nil {
+			return fmt.Errorf("apply migration %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 type IssueInput struct {

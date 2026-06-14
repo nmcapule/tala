@@ -129,6 +129,37 @@ func TestOpenCreatesDatabaseParentDirectory(t *testing.T) {
 	}
 }
 
+func TestMigrateIsIdempotentAndSchemaComplete(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+
+	for i := 0; i < 2; i++ {
+		if err := st.Migrate(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertForeignKeysEnabled(t, st)
+	assertSchemaObjects(t, st, []string{
+		"comments",
+		"comments_issue_created_idx",
+		"issue_blockers",
+		"issue_blockers_blocker_idx",
+		"issue_tags",
+		"issues",
+		"issues_assignee_idx",
+		"issues_parent_idx",
+		"issues_priority_idx",
+		"issues_status_idx",
+		"tags",
+		"tags_name_unique",
+	})
+
+	_, err := st.db.ExecContext(ctx, `INSERT INTO issue_tags (issue_id, tag_id) VALUES (?, ?)`, "issue_missing", "tag_missing")
+	if err == nil {
+		t.Fatal("expected migrated database to enforce foreign keys")
+	}
+}
+
 func TestRelationshipNoOpsPreserveUpdatedAt(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
@@ -466,6 +497,35 @@ func assertForeignKeysEnabled(t *testing.T, st *Store) {
 	}
 	if enabled != 1 {
 		t.Fatalf("foreign key enforcement disabled: PRAGMA foreign_keys=%d", enabled)
+	}
+}
+
+func assertSchemaObjects(t *testing.T, st *Store, want []string) {
+	t.Helper()
+	rows, err := st.db.Query(`SELECT name FROM sqlite_master WHERE type IN ('table', 'index') AND name NOT LIKE 'sqlite_%' ORDER BY name`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+
+	got := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got schema objects %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got schema objects %v, want %v", got, want)
+		}
 	}
 }
 
