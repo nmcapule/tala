@@ -82,6 +82,7 @@ input:focus, textarea:focus, select:focus { border-color: #8b8173; box-shadow: 0
 .card-title-row h3, .dependency h3 { margin: 0; font-size: 16px; line-height: 22px; }
 .card-title-row h2, .card-title-row h3 { min-width: 0; overflow-wrap: anywhere; }
 .card-title-row span { flex: 0 0 auto; color: #5a534a; font-size: 11px; font-weight: 700; }
+.detail-title-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 0 0 auto; max-width: 44%; flex-wrap: wrap; }
 .meta-row, .tag-row, .card-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 0; }
 .card-footer { color: #5a534a; font-size: 11px; line-height: 16px; font-weight: 700; }
 .card-footer span { display: inline-flex; gap: 4px; align-items: center; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }

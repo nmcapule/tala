@@ -370,6 +370,17 @@ agent-browser --session "$session" eval "(() => {
   }
   return true;
 })()" >/dev/null
+agent-browser --session "$session" eval "(() => {
+  const hero = document.querySelector('.detail-hero');
+  const descriptionPanel = Array.from(document.querySelectorAll('.panel')).find((panel) => panel.textContent?.includes('Description'));
+  if (!hero) throw new Error('detail hero not found before edit mode');
+  if (hero.querySelector('input')) throw new Error('detail title input rendered before edit mode');
+  if (descriptionPanel?.querySelector('textarea')) throw new Error('description textarea rendered before edit mode');
+  const editButton = Array.from(hero.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Edit');
+  if (!editButton) throw new Error('detail edit toggle not found');
+  editButton.click();
+  return true;
+})()" >/dev/null
 agent-browser --session "$session" eval "new Promise((resolve, reject) => {
   const hero = document.querySelector('.detail-hero');
   if (!hero) return reject(new Error('detail hero not found'));
@@ -439,6 +450,7 @@ agent-browser --session "$session" eval "(() => {
   return true;
 })()" >/dev/null
 agent-browser --session "$session" wait --text "Issue detail" >/dev/null
+agent-browser --session "$session" find role button click --name "Edit" >/dev/null
 saved_description="Detail saved **markdown** <script>window.talaUnsafeMarkdown = true</script> [unsafe](javascript:alert(1))"
 agent-browser --session "$session" eval "(() => {
   const panels = Array.from(document.querySelectorAll('.panel'));
@@ -502,6 +514,27 @@ agent-browser --session "$session" eval "(() => {
 agent-browser --session "$session" wait 700 >/dev/null
 curl -fsS "$base/api/issues/$child_id" >/tmp/tala-browser-smoke-detail-tag.json
 bun -e 'let d=require("/tmp/tala-browser-smoke-detail-tag.json"); if(!d.tags.some(t => t.name === process.argv[1])) { console.error("detail tag did not save"); process.exit(1) }' "$detail_tag"
+agent-browser --session "$session" eval "new Promise((resolve, reject) => {
+  const hero = document.querySelector('.detail-hero');
+  if (!hero) return reject(new Error('detail hero not found for unsaved exit check'));
+  const titleInput = hero.querySelector('input');
+  const doneButton = Array.from(hero.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Done');
+  if (!titleInput || !doneButton) return reject(new Error('edit mode controls not found for unsaved exit check'));
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(titleInput), 'value')?.set;
+  setter.call(titleInput, 'Unsaved smoke draft');
+  titleInput.dispatchEvent(new Event('input', { bubbles: true }));
+  window.confirm = () => false;
+  doneButton.click();
+  if (!hero.querySelector('input')) return reject(new Error('canceling unsaved exit should keep edit mode active'));
+  window.confirm = () => true;
+  doneButton.click();
+  window.setTimeout(() => {
+    if (hero.querySelector('input')) return reject(new Error('confirming unsaved exit should leave edit mode'));
+    if (document.body.innerText.includes('Unsaved smoke draft')) return reject(new Error('discarding unsaved exit kept draft text visible'));
+    if (!document.body.innerText.includes('$child_title')) return reject(new Error('discarding unsaved exit did not restore saved title'));
+    resolve(true);
+  }, 100);
+})" >/dev/null
 agent-browser --session "$session" eval "(() => {
   if (window.talaUnsafeMarkdown) {
     throw new Error('unsafe Markdown script executed');

@@ -1,4 +1,4 @@
 interface:
   display_name: "Tala Project Tracker"
-  short_description: "Track project work in Tala issues"
-  default_prompt: "Use $tala-project-tracker to plan this work in Tala and keep the issue updated."
+  short_description: "Create, update, comment on, and track Tala issues"
+  default_prompt: "Use $tala-project-tracker to create or reuse a Tala issue for this work, then keep it updated with progress and handoff comments."

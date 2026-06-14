@@ -21,11 +21,21 @@ Always use this repo's own Tala skill as the durable project work ledger:
 Use the Tala skill for planning, implementation tracking, progress updates, and
 handoff notes. Before reading `.tala/tala.db` directly, check for the
 repo-local Tala MCP tools. If the `mcp__tala` tools are not already visible,
-use tool discovery/search for "tala issue search" or "tala project tracker
-MCP", then use `mcp__tala.issue_search`, `mcp__tala.issue_get`, and related
-`mcp__tala` tools. Only read `.tala/tala.db` directly for diagnostics or
-verification when MCP tools are unavailable. Do not use another Tala database
-unless the user explicitly requests it.
+use tool discovery/search for "tala issue search create comment update image
+upload project tracker MCP" with enough result slots to expose the full tool
+set, then use the available `mcp__tala` tools. Expected tools include
+`mcp__tala.issue_search`, `mcp__tala.issue_get`, `mcp__tala.issue_create`,
+`mcp__tala.issue_update`, `mcp__tala.issue_comment`,
+`mcp__tala.image_upload`, and relationship/status helpers. Only read
+`.tala/tala.db` directly for diagnostics or verification when MCP tools are
+unavailable. Do not use another Tala database unless the user explicitly
+requests it.
+
+Before implementing an accepted plan, ask the user whether to create a new Tala
+issue or reuse an existing issue for the work. If they want tracking, search
+first, create a new issue with `mcp__tala.issue_create` only when no clear
+match exists, mark the active issue `in_progress`, and add progress,
+completion, or handoff notes with `mcp__tala.issue_comment`.
 
 Before finishing any work that creates temporary issues, tags, comments, or
 other test records in this repo's `.tala/tala.db`, clean them up or document why they

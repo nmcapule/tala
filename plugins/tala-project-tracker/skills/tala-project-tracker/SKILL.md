@@ -1,6 +1,6 @@
 ---
 name: tala-project-tracker
-description: Use Tala as a project-local issue tracker for planning, effort management, resumable agent work, and handoff. Trigger when Codex is asked to plan or implement project work, create or update feature/bug/task breakdowns, track progress in a project `.tala/tala.db`, consult a Tala MCP server, maintain parent/child/blocker relationships, add progress comments, or leave resumable checklists for future agents.
+description: Use Tala as a project-local issue tracker for planning, effort management, resumable agent work, and handoff. Trigger when Codex is asked to plan or implement project work, create or update feature/bug/task breakdowns, track progress in a project `.tala/tala.db`, consult a Tala MCP server, maintain parent/child/blocker relationships, add progress comments, upload issue images, or leave resumable checklists for future agents.
 ---
 
 # Tala Project Tracker
@@ -9,7 +9,9 @@ description: Use Tala as a project-local issue tracker for planning, effort mana
 
 Use Tala as the durable project work ledger. Before meaningful project work, consult Tala. During work, keep the relevant issue updated. At interruption or handoff, leave a comment that lets another agent resume.
 
-Use a configured Tala MCP server named `tala`. When installed through the repo-local Codex plugin, the plugin starts that server over stdio against the current workspace's `.tala/tala.db`; it does not require `make own-db`. Before reading `.tala/tala.db` directly, check whether the MCP tools are already visible. If they are not, use tool discovery/search for "tala issue search" or "tala project tracker MCP", then use `mcp__tala.issue_search`, `mcp__tala.issue_get`, and related `mcp__tala` tools.
+Use a configured Tala MCP server named `tala`. When installed through the repo-local Codex plugin, the plugin starts that server over stdio against the current workspace's `.tala/tala.db`; it does not require `make own-db`. Before reading `.tala/tala.db` directly, check whether the MCP tools are already visible. If they are not, use tool discovery/search for "tala issue search create comment update image upload project tracker MCP" with enough result slots to expose the full Tala tool set.
+
+Expected MCP tools include `mcp__tala.issue_search`, `mcp__tala.issue_get`, `mcp__tala.issue_create`, `mcp__tala.issue_update`, `mcp__tala.issue_comment`, `mcp__tala.image_upload`, and relationship/status helpers such as `issue_set_status`, `issue_set_priority`, `issue_set_parent`, `issue_add_blocker`, and `issue_remove_blocker`. Do not conclude that create/comment/upload tools are unavailable just because an initial low-limit discovery call only returned search/get/status tools.
 
 Only read `.tala/tala.db` directly for diagnostics or verification when MCP tools are unavailable.
 
@@ -25,7 +27,7 @@ Only read `.tala/tala.db` directly for diagnostics or verification when MCP tool
 
 1. Identify the task intent: feature, bug, investigation, release, docs, or tech debt.
 2. Search Tala before creating anything.
-   - First discover the Tala MCP tools if needed, then use `mcp__tala.issue_search` with a concise query.
+   - First discover the full Tala MCP tools if needed, then use `mcp__tala.issue_search` with a concise query.
 3. Reuse an existing issue when it clearly matches.
 4. Create a new issue only when no good match exists. Format filed issue descriptions with `Context`, optional `References`, and `Action Items`; see `references/tala-workflow.md`.
 5. For complex work, ensure a parent issue exists and create child issues for independently resumable work. Use nested children only when a child itself needs multiple implementation phases.

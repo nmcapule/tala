@@ -16,6 +16,7 @@ import {
   ImagePlus,
   LoaderCircle,
   MessageSquare,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -624,6 +625,7 @@ function IssueDetail({ issue, detailLoading, username, issues, onOpenIssue, onAp
   const [assigneeDraft, setAssigneeDraft] = useState(issue.assignee || "");
   const [tab, setTab] = useState<"source" | "preview">("source");
   const [draft, setDraft] = useState(issue.description_markdown);
+  const [editingInlineFields, setEditingInlineFields] = useState(false);
   const [comments, setComments] = useState<Comment[]>(issue.recent_comments || []);
   const [comment, setComment] = useState("");
   const [commentTab, setCommentTab] = useState<"source" | "preview">("source");
@@ -646,9 +648,10 @@ function IssueDetail({ issue, detailLoading, username, issues, onOpenIssue, onAp
   const commentRef = useRef<HTMLTextAreaElement | null>(null);
   const showActionLoading = useDelayedBusy(actionBusy);
   const showCommentsLoading = useDelayedBusy(commentsLoading);
+  const savedTagDraft = (issue.tags || []).map((tag) => tag.name).join(", ");
 
   useEffect(() => setTitle(issue.title), [issue.id, issue.title]);
-  useEffect(() => setTagDraft((issue.tags || []).map((tag) => tag.name).join(", ")), [issue.id, issue.tags]);
+  useEffect(() => setTagDraft(savedTagDraft), [issue.id, savedTagDraft]);
   useEffect(() => setAssigneeDraft(issue.assignee || ""), [issue.id, issue.assignee]);
   useEffect(() => setDraft(issue.description_markdown), [issue.id, issue.description_markdown]);
   useEffect(() => setParentID(issue.parent_issue_id || ""), [issue.id, issue.parent_issue_id]);
@@ -662,7 +665,31 @@ function IssueDetail({ issue, detailLoading, username, issues, onOpenIssue, onAp
     setCommentError("");
     setCommentLoadError("");
     setActionNotice(null);
+    setEditingInlineFields(false);
   }, [issue.id]);
+
+  function resetInlineDrafts() {
+    setTitle(issue.title);
+    setTagDraft(savedTagDraft);
+    setAssigneeDraft(issue.assignee || "");
+    setDraft(issue.description_markdown);
+    setTab("source");
+    setTitleError("");
+    setActionNotice(null);
+  }
+
+  function hasUnsavedInlineDrafts() {
+    return title !== issue.title
+      || tagDraft !== savedTagDraft
+      || assigneeDraft !== (issue.assignee || "")
+      || draft !== issue.description_markdown;
+  }
+
+  function closeInlineEditing() {
+    if (hasUnsavedInlineDrafts() && !window.confirm("Discard unsaved field changes?")) return;
+    resetInlineDrafts();
+    setEditingInlineFields(false);
+  }
 
   async function loadComments() {
     setCommentLoadError("");
@@ -746,71 +773,98 @@ function IssueDetail({ issue, detailLoading, username, issues, onOpenIssue, onAp
       {showActionLoading && pendingMessage && <LoadingStatus message={pendingMessage} compact />}
       {actionNotice && <ActionStatus notice={actionNotice} />}
       <section className="detail-hero">
-        <div className="card-title-row"><h2>{issue.title}</h2><span>{shortID(issue.id)}</span></div>
-        <div className="edit-stack">
-          <div className="edit-field">
-            <label>Title</label>
-            <div className="field-action-row">
-              <input className={titleError ? "invalid" : ""} value={title} onChange={(e) => {
-                setTitle(e.target.value);
-                setTitleError("");
-                setActionNotice(null);
-              }} />
-              <button className="button" disabled={actionBusy} onClick={() => {
-                if (!title.trim()) {
-                  setTitleError("Title is required.");
-                  return;
-                }
-                patch({ title }, { pending: "Saving title...", success: "Title saved." });
-              }}>Save</button>
-            </div>
-            {titleError && <div className="field-error inline-error"><AlertCircle size={15} />{titleError}</div>}
-          </div>
-          <div className="meta-row detail-meta-row">
-            <select value={issue.status} disabled={actionBusy} onChange={(e) => patch({ status: e.target.value }, { pending: "Saving status...", success: "Status saved." })}>{statuses.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select>
-            <select value={issue.priority} disabled={actionBusy} onChange={(e) => patch({ priority: e.target.value }, { pending: "Saving priority...", success: "Priority saved." })}>{priorities.map((p) => <option key={p} value={p}>{p}</option>)}</select>
-            <Badge>Created by {issue.created_by}</Badge>
-          </div>
-          <div className="edit-field">
-            <label>Assignee</label>
-            <div className="field-action-row">
-              <input value={assigneeDraft} placeholder="Assignee" onChange={(e) => {
-                setAssigneeDraft(e.target.value);
-                setActionNotice(null);
-              }} />
-              <button className="button" disabled={actionBusy} onClick={() => patch({ assignee: optionalText(assigneeDraft) }, { pending: "Saving assignee...", success: "Assignee saved." })}>Save assignee</button>
-            </div>
-          </div>
-          <div className="edit-field">
-            <label>Tags</label>
-            <div className="field-action-row">
-              <input value={tagDraft} onChange={(e) => {
-                setTagDraft(e.target.value);
-                setActionNotice(null);
-              }} placeholder="mcp, api" />
-              <button className="button" disabled={actionBusy} onClick={() => runAction(async () => {
-                await api(`/api/issues/${issue.id}`, { method: "PATCH", body: { tag_names: splitTags(tagDraft) }, username });
-                await Promise.all([onRefresh(), onTagsChanged()]);
-              }, undefined, { pending: "Saving tags...", success: "Tags saved." })}>Save</button>
-            </div>
+        <div className="card-title-row">
+          <h2>{issue.title}</h2>
+          <div className="detail-title-actions">
+            <span>{shortID(issue.id)}</span>
+            {editingInlineFields ? (
+              <button className="button compact" disabled={actionBusy} onClick={closeInlineEditing}><Check size={15} />Done</button>
+            ) : (
+              <button className="button compact" disabled={actionBusy} onClick={() => setEditingInlineFields(true)}><Pencil size={15} />Edit</button>
+            )}
           </div>
         </div>
+        <div className="meta-row detail-meta-row">
+          <Badge tone={isResolved(issue) ? "good" : issue.blocked ? "danger" : "neutral"}>{statusLabel(issue.status)}</Badge>
+          <Badge tone={issue.priority === "P0" || issue.priority === "P1" ? "danger" : "neutral"}>{issue.priority}</Badge>
+          <Badge>{issue.assignee || "Unassigned"}</Badge>
+          <Badge>Created by {issue.created_by}</Badge>
+        </div>
+        <TagRow tags={issue.tags || []} limit={4} />
+        {editingInlineFields && (
+          <div className="edit-stack">
+            <div className="edit-field">
+              <label>Title</label>
+              <div className="field-action-row">
+                <input className={titleError ? "invalid" : ""} value={title} onChange={(e) => {
+                  setTitle(e.target.value);
+                  setTitleError("");
+                  setActionNotice(null);
+                }} />
+                <button className="button" disabled={actionBusy} onClick={() => {
+                  if (!title.trim()) {
+                    setTitleError("Title is required.");
+                    return;
+                  }
+                  patch({ title }, { pending: "Saving title...", success: "Title saved." });
+                }}>Save</button>
+              </div>
+              {titleError && <div className="field-error inline-error"><AlertCircle size={15} />{titleError}</div>}
+            </div>
+            <div className="meta-row detail-meta-row">
+              <select value={issue.status} disabled={actionBusy} onChange={(e) => patch({ status: e.target.value }, { pending: "Saving status...", success: "Status saved." })}>{statuses.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select>
+              <select value={issue.priority} disabled={actionBusy} onChange={(e) => patch({ priority: e.target.value }, { pending: "Saving priority...", success: "Priority saved." })}>{priorities.map((p) => <option key={p} value={p}>{p}</option>)}</select>
+            </div>
+            <div className="edit-field">
+              <label>Assignee</label>
+              <div className="field-action-row">
+                <input value={assigneeDraft} placeholder="Assignee" onChange={(e) => {
+                  setAssigneeDraft(e.target.value);
+                  setActionNotice(null);
+                }} />
+                <button className="button" disabled={actionBusy} onClick={() => patch({ assignee: optionalText(assigneeDraft) }, { pending: "Saving assignee...", success: "Assignee saved." })}>Save assignee</button>
+              </div>
+            </div>
+            <div className="edit-field">
+              <label>Tags</label>
+              <div className="field-action-row">
+                <input value={tagDraft} onChange={(e) => {
+                  setTagDraft(e.target.value);
+                  setActionNotice(null);
+                }} placeholder="mcp, api" />
+                <button className="button" disabled={actionBusy} onClick={() => runAction(async () => {
+                  await api(`/api/issues/${issue.id}`, { method: "PATCH", body: { tag_names: splitTags(tagDraft) }, username });
+                  await Promise.all([onRefresh(), onTagsChanged()]);
+                }, undefined, { pending: "Saving tags...", success: "Tags saved." })}>Save</button>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="panel">
-        <div className="section-title"><h3>Description</h3><Segment value={tab} onChange={setTab} /></div>
-        {tab === "source" ? (
-          <textarea ref={descriptionRef} className="editor-surface" value={draft} onChange={(e) => {
-            setDraft(e.target.value);
-            setActionNotice(null);
-          }} rows={7} />
-        ) : (
-          <div className="comment-preview editor-preview"><Markdown text={draft || "_No description yet._"} /></div>
-        )}
-        <div className="detail-actions">
-          <ImageUploadControl username={username} disabled={actionBusy} onUploaded={(markdown) => insertAtCursor(descriptionRef, draft, setDraft, markdown)} />
-          <button className="button" disabled={actionBusy} onClick={() => patch({ description_markdown: draft }, { pending: "Saving description...", success: "Description saved." })}>Save description</button>
+        <div className="section-title">
+          <h3>Description</h3>
+          {editingInlineFields && <Segment value={tab} onChange={setTab} />}
         </div>
+        {editingInlineFields ? (
+          tab === "source" ? (
+            <textarea ref={descriptionRef} className="editor-surface" value={draft} onChange={(e) => {
+              setDraft(e.target.value);
+              setActionNotice(null);
+            }} rows={7} />
+          ) : (
+            <div className="comment-preview editor-preview"><Markdown text={draft || "_No description yet._"} /></div>
+          )
+        ) : (
+          <div className="comment-preview editor-preview"><Markdown text={issue.description_markdown || "_No description yet._"} /></div>
+        )}
+        {editingInlineFields && (
+          <div className="detail-actions">
+            <ImageUploadControl username={username} disabled={actionBusy} onUploaded={(markdown) => insertAtCursor(descriptionRef, draft, setDraft, markdown)} />
+            <button className="button" disabled={actionBusy} onClick={() => patch({ description_markdown: draft }, { pending: "Saving description...", success: "Description saved." })}>Save description</button>
+          </div>
+        )}
       </section>
 
       <section className="panel">
