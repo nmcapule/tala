@@ -618,7 +618,7 @@ func (s *Server) readResource(ctx context.Context, uri string) (any, *rpcError) 
 				tree := map[string]any{
 					"issue":    compactIssue(issue),
 					"parent":   nil,
-					"siblings": []domain.Issue{},
+					"siblings": []compactResourceIssue{},
 					"children": compactIssues(issue.Children),
 				}
 				if issue.ParentIssueID != nil {
@@ -692,48 +692,67 @@ func toolErrorResult(appErr *domain.AppError) map[string]any {
 }
 
 type dependencyContext struct {
-	Issue               domain.Issue   `json:"issue"`
-	Blockers            []domain.Issue `json:"blockers"`
-	UnresolvedBlockers  []domain.Issue `json:"unresolved_blockers"`
-	ResolvedBlockers    []domain.Issue `json:"resolved_blockers"`
-	BlockedBy           []domain.Issue `json:"blocked_by"`
-	UnresolvedBlockedBy []domain.Issue `json:"unresolved_blocked_by"`
-	ResolvedBlockedBy   []domain.Issue `json:"resolved_blocked_by"`
+	Issue               compactResourceIssue   `json:"issue"`
+	Blockers            []compactResourceIssue `json:"blockers"`
+	UnresolvedBlockers  []compactResourceIssue `json:"unresolved_blockers"`
+	ResolvedBlockers    []compactResourceIssue `json:"resolved_blockers"`
+	BlockedBy           []compactResourceIssue `json:"blocked_by"`
+	UnresolvedBlockedBy []compactResourceIssue `json:"unresolved_blocked_by"`
+	ResolvedBlockedBy   []compactResourceIssue `json:"resolved_blocked_by"`
 }
 
-func compactIssues(issues []domain.Issue) []domain.Issue {
-	out := make([]domain.Issue, 0, len(issues))
+type compactResourceIssue struct {
+	ID            string          `json:"id"`
+	Title         string          `json:"title"`
+	Status        domain.Status   `json:"status"`
+	Priority      domain.Priority `json:"priority"`
+	Assignee      *string         `json:"assignee"`
+	ParentIssueID *string         `json:"parent_issue_id"`
+	Tags          []compactTag    `json:"tags"`
+	ChildCount    int             `json:"child_count"`
+	CommentCount  int             `json:"comment_count"`
+	Blocked       bool            `json:"blocked"`
+}
+
+type compactTag struct {
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Color *string `json:"color"`
+}
+
+func compactIssues(issues []domain.Issue) []compactResourceIssue {
+	out := make([]compactResourceIssue, 0, len(issues))
 	for _, issue := range issues {
 		out = append(out, compactIssue(issue))
 	}
 	return out
 }
 
-func compactIssue(issue domain.Issue) domain.Issue {
-	return domain.Issue{
-		ID:                  issue.ID,
-		Title:               issue.Title,
-		DescriptionMarkdown: issue.DescriptionMarkdown,
-		Status:              issue.Status,
-		Priority:            issue.Priority,
-		Assignee:            issue.Assignee,
-		CreatedBy:           issue.CreatedBy,
-		ParentIssueID:       issue.ParentIssueID,
-		CreatedAt:           issue.CreatedAt,
-		UpdatedAt:           issue.UpdatedAt,
-		Tags:                issue.Tags,
-		Children:            []domain.Issue{},
-		Blockers:            []domain.Issue{},
-		BlockedBy:           []domain.Issue{},
-		RecentComments:      []domain.Comment{},
-		ChildCount:          issue.ChildCount,
-		CommentCount:        issue.CommentCount,
-		Blocked:             issue.Blocked,
+func compactIssue(issue domain.Issue) compactResourceIssue {
+	return compactResourceIssue{
+		ID:            issue.ID,
+		Title:         issue.Title,
+		Status:        issue.Status,
+		Priority:      issue.Priority,
+		Assignee:      issue.Assignee,
+		ParentIssueID: issue.ParentIssueID,
+		Tags:          compactTags(issue.Tags),
+		ChildCount:    issue.ChildCount,
+		CommentCount:  issue.CommentCount,
+		Blocked:       issue.Blocked,
 	}
 }
 
-func childrenByParent(issues []domain.Issue) map[string][]domain.Issue {
-	children := map[string][]domain.Issue{}
+func compactTags(tags []domain.Tag) []compactTag {
+	out := make([]compactTag, 0, len(tags))
+	for _, tag := range tags {
+		out = append(out, compactTag{ID: tag.ID, Name: tag.Name, Color: tag.Color})
+	}
+	return out
+}
+
+func childrenByParent(issues []domain.Issue) map[string][]compactResourceIssue {
+	children := map[string][]compactResourceIssue{}
 	for _, issue := range issues {
 		if issue.ParentIssueID == nil {
 			continue
@@ -755,9 +774,9 @@ func blockedContexts(issues []domain.Issue) []dependencyContext {
 			Blockers:            compactIssues(issue.Blockers),
 			UnresolvedBlockers:  unresolvedIssues(issue.Blockers),
 			ResolvedBlockers:    resolvedIssues(issue.Blockers),
-			BlockedBy:           []domain.Issue{},
-			UnresolvedBlockedBy: []domain.Issue{},
-			ResolvedBlockedBy:   []domain.Issue{},
+			BlockedBy:           []compactResourceIssue{},
+			UnresolvedBlockedBy: []compactResourceIssue{},
+			ResolvedBlockedBy:   []compactResourceIssue{},
 		})
 	}
 	return contexts
@@ -771,9 +790,9 @@ func blockingContexts(issues []domain.Issue) []dependencyContext {
 		}
 		contexts = append(contexts, dependencyContext{
 			Issue:               compactIssue(issue),
-			Blockers:            []domain.Issue{},
-			UnresolvedBlockers:  []domain.Issue{},
-			ResolvedBlockers:    []domain.Issue{},
+			Blockers:            []compactResourceIssue{},
+			UnresolvedBlockers:  []compactResourceIssue{},
+			ResolvedBlockers:    []compactResourceIssue{},
 			BlockedBy:           compactIssues(issue.BlockedBy),
 			UnresolvedBlockedBy: unresolvedIssues(issue.BlockedBy),
 			ResolvedBlockedBy:   resolvedIssues(issue.BlockedBy),
@@ -782,13 +801,13 @@ func blockingContexts(issues []domain.Issue) []dependencyContext {
 	return contexts
 }
 
-func unresolvedIssues(issues []domain.Issue) []domain.Issue {
+func unresolvedIssues(issues []domain.Issue) []compactResourceIssue {
 	return compactIssues(filterIssues(issues, func(issue domain.Issue) bool {
 		return !domain.TerminalStatus(issue.Status)
 	}))
 }
 
-func resolvedIssues(issues []domain.Issue) []domain.Issue {
+func resolvedIssues(issues []domain.Issue) []compactResourceIssue {
 	return compactIssues(filterIssues(issues, func(issue domain.Issue) bool {
 		return domain.TerminalStatus(issue.Status)
 	}))
@@ -804,8 +823,8 @@ func filterIssues(issues []domain.Issue, keep func(domain.Issue) bool) []domain.
 	return filtered
 }
 
-func emptyBoard() map[string][]domain.Issue {
-	return map[string][]domain.Issue{
+func emptyBoard() map[string][]compactResourceIssue {
+	return map[string][]compactResourceIssue{
 		string(domain.StatusNew):        {},
 		string(domain.StatusInProgress): {},
 		string(domain.StatusCompleted):  {},

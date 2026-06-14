@@ -430,14 +430,7 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 		t.Fatalf("expected completed board group to contain resolved issues, got %#v", boardData["completed"])
 	}
 	for _, issue := range boardData["new"] {
-		for _, field := range []string{"tags", "children", "blockers", "blocked_by", "recent_comments"} {
-			if issue[field] == nil {
-				t.Fatalf("expected compact board issue field %q to be an array, got nil in %#v", field, issue)
-			}
-			if _, ok := issue[field].([]any); !ok {
-				t.Fatalf("expected compact board issue field %q to be an array, got %#v", field, issue[field])
-			}
-		}
+		assertCompactResourceIssueShape(t, issue)
 	}
 
 	tree := readResource(t, server, "tala://issues/"+childID+"/tree")
@@ -447,9 +440,9 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	}
 	rootTree := readResource(t, server, "tala://issues/"+parentID+"/tree")
 	var rootTreeData struct {
-		Parent   *map[string]any `json:"parent"`
-		Siblings []domain.Issue  `json:"siblings"`
-		Children []domain.Issue  `json:"children"`
+		Parent   *map[string]any        `json:"parent"`
+		Siblings []compactResourceIssue `json:"siblings"`
+		Children []compactResourceIssue `json:"children"`
 	}
 	if err := json.Unmarshal([]byte(resourceText(t, rootTree)), &rootTreeData); err != nil {
 		t.Fatalf("decode root tree resource: %v", err)
@@ -460,13 +453,8 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	if rootTreeData.Siblings == nil || len(rootTreeData.Siblings) != 0 {
 		t.Fatalf("expected root tree siblings to be an empty array, got %#v", rootTreeData.Siblings)
 	}
-	if !containsDomainIssueID(rootTreeData.Children, childID) {
+	if !containsCompactIssueID(rootTreeData.Children, childID) {
 		t.Fatalf("expected root tree children to include child issue, got %#v", rootTreeData.Children)
-	}
-	for _, child := range rootTreeData.Children {
-		if child.ID == childID && (len(child.Children) != 0 || len(child.Blockers) != 0 || len(child.BlockedBy) != 0 || len(child.RecentComments) != 0) {
-			t.Fatalf("expected tree children to be compact issues, got %#v", child)
-		}
 	}
 
 	blockers := readResource(t, server, "tala://issues/"+childID+"/blockers")
@@ -475,28 +463,28 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 		t.Fatalf("blocker resource missing expected context: %s", blockerText)
 	}
 	var blockerResource struct {
-		UnresolvedBlockers  []domain.Issue `json:"unresolved_blockers"`
-		ResolvedBlockers    []domain.Issue `json:"resolved_blockers"`
-		UnresolvedBlockedBy []domain.Issue `json:"unresolved_blocked_by"`
-		ResolvedBlockedBy   []domain.Issue `json:"resolved_blocked_by"`
+		UnresolvedBlockers  []compactResourceIssue `json:"unresolved_blockers"`
+		ResolvedBlockers    []compactResourceIssue `json:"resolved_blockers"`
+		UnresolvedBlockedBy []compactResourceIssue `json:"unresolved_blocked_by"`
+		ResolvedBlockedBy   []compactResourceIssue `json:"resolved_blocked_by"`
 	}
 	if err := json.Unmarshal([]byte(blockerText), &blockerResource); err != nil {
 		t.Fatalf("decode blocker resource: %v", err)
 	}
-	if !containsDomainIssueID(blockerResource.UnresolvedBlockers, blockerID) || containsDomainIssueID(blockerResource.UnresolvedBlockers, resolvedBlockerID) {
+	if !containsCompactIssueID(blockerResource.UnresolvedBlockers, blockerID) || containsCompactIssueID(blockerResource.UnresolvedBlockers, resolvedBlockerID) {
 		t.Fatalf("blocker resource unresolved split is wrong: %#v", blockerResource.UnresolvedBlockers)
 	}
-	if !containsDomainIssueID(blockerResource.ResolvedBlockers, resolvedBlockerID) {
+	if !containsCompactIssueID(blockerResource.ResolvedBlockers, resolvedBlockerID) {
 		t.Fatalf("blocker resource resolved split missing resolved blocker: %#v", blockerResource.ResolvedBlockers)
 	}
 	blockingResource := readResource(t, server, "tala://issues/"+blockerID+"/blockers")
 	if err := json.Unmarshal([]byte(resourceText(t, blockingResource)), &blockerResource); err != nil {
 		t.Fatalf("decode blocking resource: %v", err)
 	}
-	if !containsDomainIssueID(blockerResource.UnresolvedBlockedBy, childID) || containsDomainIssueID(blockerResource.UnresolvedBlockedBy, resolvedDependentID) {
+	if !containsCompactIssueID(blockerResource.UnresolvedBlockedBy, childID) || containsCompactIssueID(blockerResource.UnresolvedBlockedBy, resolvedDependentID) {
 		t.Fatalf("blocking resource unresolved blocked_by split is wrong: %#v", blockerResource.UnresolvedBlockedBy)
 	}
-	if !containsDomainIssueID(blockerResource.ResolvedBlockedBy, resolvedDependentID) {
+	if !containsCompactIssueID(blockerResource.ResolvedBlockedBy, resolvedDependentID) {
 		t.Fatalf("blocking resource resolved blocked_by split missing resolved dependent: %#v", blockerResource.ResolvedBlockedBy)
 	}
 
@@ -526,6 +514,10 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	}
 	assertStableDependencyContexts(t, planning.Blocked)
 	assertStableDependencyContexts(t, planning.Blocking)
+	assertResourceSummariesOmitBulkyFields(t, resourceText(t, board))
+	assertResourceSummariesOmitBulkyFields(t, treeText)
+	assertResourceSummariesOmitBulkyFields(t, blockerText)
+	assertResourceSummariesOmitBulkyFields(t, resourceText(t, planningResource))
 }
 
 func TestMCPImageUploadTool(t *testing.T) {
@@ -1091,12 +1083,48 @@ func containsIssueID(issues []map[string]any, id string) bool {
 	return false
 }
 
+func assertCompactResourceIssueShape(t *testing.T, issue map[string]any) {
+	t.Helper()
+	for _, field := range []string{"id", "title", "status", "priority", "assignee", "parent_issue_id", "tags", "child_count", "comment_count", "blocked"} {
+		if _, ok := issue[field]; !ok {
+			t.Fatalf("compact resource issue missing field %q in %#v", field, issue)
+		}
+	}
+	for _, field := range bulkyIssueFields() {
+		if _, ok := issue[field]; ok {
+			t.Fatalf("compact resource issue should omit field %q in %#v", field, issue)
+		}
+	}
+	if _, ok := issue["tags"].([]any); !ok {
+		t.Fatalf("expected compact resource issue tags to be an array, got %#v", issue["tags"])
+	}
+}
+
+func assertResourceSummariesOmitBulkyFields(t *testing.T, text string) {
+	t.Helper()
+	for _, field := range bulkyIssueFields() {
+		if bytes.Contains([]byte(text), []byte(`"`+field+`"`)) {
+			t.Fatalf("expected compact resource summary to omit %q, got %s", field, text)
+		}
+	}
+}
+
+func bulkyIssueFields() []string {
+	return []string{
+		"description_markdown",
+		"created_by",
+		"created_at",
+		"updated_at",
+		"recent_comments",
+	}
+}
+
 func dependencyHas(contexts []dependencyContext, issueID, relatedID string) bool {
 	for _, context := range contexts {
 		if context.Issue.ID != issueID {
 			continue
 		}
-		if containsDomainIssueID(context.UnresolvedBlockers, relatedID) || containsDomainIssueID(context.BlockedBy, relatedID) {
+		if containsCompactIssueID(context.UnresolvedBlockers, relatedID) || containsCompactIssueID(context.BlockedBy, relatedID) {
 			return true
 		}
 	}
@@ -1105,7 +1133,7 @@ func dependencyHas(contexts []dependencyContext, issueID, relatedID string) bool
 
 func dependencyHasResolved(contexts []dependencyContext, issueID, relatedID string) bool {
 	for _, context := range contexts {
-		if context.Issue.ID == issueID && containsDomainIssueID(context.ResolvedBlockers, relatedID) {
+		if context.Issue.ID == issueID && containsCompactIssueID(context.ResolvedBlockers, relatedID) {
 			return true
 		}
 	}
@@ -1114,7 +1142,7 @@ func dependencyHasResolved(contexts []dependencyContext, issueID, relatedID stri
 
 func dependencyHasResolvedBlockedBy(contexts []dependencyContext, issueID, relatedID string) bool {
 	for _, context := range contexts {
-		if context.Issue.ID == issueID && containsDomainIssueID(context.ResolvedBlockedBy, relatedID) {
+		if context.Issue.ID == issueID && containsCompactIssueID(context.ResolvedBlockedBy, relatedID) {
 			return true
 		}
 	}
@@ -1142,13 +1170,19 @@ func assertStableDependencyContexts(t *testing.T, contexts []dependencyContext) 
 		if context.ResolvedBlockedBy == nil {
 			t.Fatalf("expected dependency context resolved_blocked_by to be an array, got nil in %#v", context)
 		}
-		if len(context.Issue.Children) != 0 || len(context.Issue.Blockers) != 0 || len(context.Issue.BlockedBy) != 0 || len(context.Issue.RecentComments) != 0 {
-			t.Fatalf("expected dependency context issue to be compact, got %#v", context.Issue)
-		}
 	}
 }
 
 func containsDomainIssueID(issues []domain.Issue, id string) bool {
+	for _, issue := range issues {
+		if issue.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func containsCompactIssueID(issues []compactResourceIssue, id string) bool {
 	for _, issue := range issues {
 		if issue.ID == id {
 			return true
