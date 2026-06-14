@@ -28,6 +28,7 @@ type CreateIssueRequest struct {
 	Title               string   `json:"title"`
 	DescriptionMarkdown string   `json:"description_markdown"`
 	Priority            string   `json:"priority"`
+	StoryPoints         *int     `json:"story_points"`
 	Assignee            *string  `json:"assignee"`
 	TagNames            []string `json:"tag_names"`
 	ParentIssueID       *string  `json:"parent_issue_id"`
@@ -38,6 +39,7 @@ type UpdateIssueRequest struct {
 	DescriptionMarkdown *string  `json:"description_markdown"`
 	Status              *string  `json:"status"`
 	Priority            *string  `json:"priority"`
+	StoryPoints         **int    `json:"-"`
 	Assignee            **string `json:"-"`
 	TagNames            []string `json:"-"`
 	TagNamesSet         bool     `json:"-"`
@@ -134,6 +136,13 @@ func (r *CreateIssueRequest) UnmarshalJSON(data []byte) error {
 		}
 		r.Priority = priority
 	}
+	if rawStoryPoints, ok := fields["story_points"]; ok {
+		storyPoints, err := nullableIntField(rawStoryPoints, "story_points")
+		if err != nil {
+			return err
+		}
+		r.StoryPoints = storyPoints
+	}
 	if rawAssignee, ok := fields["assignee"]; ok {
 		assignee, err := nullableStringField(rawAssignee, "assignee")
 		if err != nil {
@@ -194,6 +203,13 @@ func (r *UpdateIssueRequest) UnmarshalJSON(data []byte) error {
 		}
 		r.Priority = &priority
 	}
+	if rawStoryPoints, ok := fields["story_points"]; ok {
+		storyPoints, err := nullableIntField(rawStoryPoints, "story_points")
+		if err != nil {
+			return err
+		}
+		r.StoryPoints = &storyPoints
+	}
 	if rawTagNames, ok := fields["tag_names"]; ok {
 		tagNames, err := stringSliceField(rawTagNames, "tag_names")
 		if err != nil {
@@ -240,6 +256,17 @@ func nullableStringField(raw json.RawMessage, name string) (*string, error) {
 	return &value, nil
 }
 
+func nullableIntField(raw json.RawMessage, name string) (*int, error) {
+	if string(raw) == "null" {
+		return nil, nil
+	}
+	var value int
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil, domain.NewError(domain.CodeValidationError, name+" must be an integer or null.", name)
+	}
+	return &value, nil
+}
+
 func stringSliceField(raw json.RawMessage, name string) ([]string, error) {
 	if string(raw) == "null" {
 		return nil, domain.NewError(domain.CodeValidationError, "Tag names must be an array.", name)
@@ -267,6 +294,9 @@ func (s *Service) CreateIssue(ctx context.Context, username string, req CreateIs
 	if !domain.ValidPriority(priority) {
 		return domain.Issue{}, domain.NewError(domain.CodeValidationError, "Unknown priority.", "priority")
 	}
+	if req.StoryPoints != nil && !domain.ValidStoryPoints(*req.StoryPoints) {
+		return domain.Issue{}, domain.NewError(domain.CodeValidationError, "Story points must be one of 1, 2, 3, 5, 8, 13, or 21.", "story_points")
+	}
 	if req.ParentIssueID != nil {
 		parent := strings.TrimSpace(*req.ParentIssueID)
 		if parent == "" {
@@ -283,6 +313,7 @@ func (s *Service) CreateIssue(ctx context.Context, username string, req CreateIs
 		DescriptionMarkdown: req.DescriptionMarkdown,
 		Status:              domain.StatusNew,
 		Priority:            priority,
+		StoryPoints:         req.StoryPoints,
 		Assignee:            cleanOptional(req.Assignee),
 		CreatedBy:           username,
 		ParentIssueID:       req.ParentIssueID,
@@ -295,7 +326,7 @@ func (s *Service) UpdateIssue(ctx context.Context, id string, req UpdateIssueReq
 	if id == "" {
 		return domain.Issue{}, domain.NewError(domain.CodeValidationError, "Issue ID is required.", "issue_id")
 	}
-	if req.Title == nil && req.DescriptionMarkdown == nil && req.Status == nil && req.Priority == nil && req.Assignee == nil && !req.TagNamesSet {
+	if req.Title == nil && req.DescriptionMarkdown == nil && req.Status == nil && req.Priority == nil && req.StoryPoints == nil && req.Assignee == nil && !req.TagNamesSet {
 		return s.GetIssue(ctx, id)
 	}
 	up := store.IssueUpdate{}
@@ -322,6 +353,12 @@ func (s *Service) UpdateIssue(ctx context.Context, id string, req UpdateIssueReq
 			return domain.Issue{}, domain.NewError(domain.CodeValidationError, "Unknown priority.", "priority")
 		}
 		up.Priority = &priority
+	}
+	if req.StoryPoints != nil {
+		if *req.StoryPoints != nil && !domain.ValidStoryPoints(**req.StoryPoints) {
+			return domain.Issue{}, domain.NewError(domain.CodeValidationError, "Story points must be one of 1, 2, 3, 5, 8, 13, or 21.", "story_points")
+		}
+		up.StoryPoints = req.StoryPoints
 	}
 	if req.Assignee != nil {
 		assignee := cleanOptional(*req.Assignee)

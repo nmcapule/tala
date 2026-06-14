@@ -63,6 +63,8 @@ An issue is the central unit of coordination.
 | `description_markdown` | string | Required Markdown source; may be empty. |
 | `status` | enum | `new`, `in_progress`, `completed`, `canceled`. |
 | `priority` | enum | `P0`, `P1`, `P2`, `P3`, `P4`; `P0` is highest. |
+| `story_points` | integer nullable | Optional direct Fibonacci estimate: `1`, `2`, `3`, `5`, `8`, `13`, or `21`. |
+| `story_points_total` | integer | Computed response field: direct estimate plus all descendant issue estimates. |
 | `assignee` | string nullable | Username string. |
 | `created_by` | string | Username string. |
 | `parent_issue_id` | string nullable | Optional parent issue. |
@@ -70,6 +72,17 @@ An issue is the central unit of coordination.
 | `updated_at` | timestamp | Updated on mutation. |
 
 Blocked work is inferred from unresolved blocker issues. There is no separate `blocked` status in v1.
+
+Story points use a standard Fibonacci sizing guide:
+
+- `1SP`: very easy, quick task.
+- `2SP`: fairly easy task that still needs a human assignee to think a bit.
+- `3SP`: task that needs a human assignee to think and work for about a day.
+- `5SP`: task that may need about two days of human work.
+- `8SP`: task that may need about a week; agents must break this down into smaller child issues.
+- `13SP` and `21SP`: large planning estimates; agents must break these down into smaller child issues.
+
+Parent issue totals roll up from direct child and descendant estimates. For example, a `2SP` child contributes `2SP` to its parent and every ancestor. The parent may also have its own direct estimate, and that direct estimate is included in `story_points_total`.
 
 ### Tag
 
@@ -122,6 +135,7 @@ CREATE TABLE issues (
   description_markdown TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL CHECK (status IN ('new', 'in_progress', 'completed', 'canceled')),
   priority TEXT NOT NULL CHECK (priority IN ('P0', 'P1', 'P2', 'P3', 'P4')),
+  story_points INTEGER CHECK (story_points IN (1, 2, 3, 5, 8, 13, 21)),
   assignee TEXT,
   created_by TEXT NOT NULL,
   parent_issue_id TEXT REFERENCES issues(id),
@@ -230,6 +244,7 @@ Create issue request:
   "title": "Add MCP issue search",
   "description_markdown": "Expose issue search to agents.",
   "priority": "P2",
+  "story_points": 3,
   "assignee": "alex",
   "tag_names": ["mcp", "api"],
   "parent_issue_id": null
@@ -244,6 +259,7 @@ Update issue request:
   "description_markdown": "Expose issue search to agents via a tool.",
   "status": "in_progress",
   "priority": "P1",
+  "story_points": 5,
   "assignee": "sam",
   "tag_names": ["mcp", "api"]
 }
@@ -342,6 +358,8 @@ Markdown fields must be named explicitly:
 - `description_markdown`
 - `body_markdown`
 
+MCP agent workflows reject direct `story_points` values of `8` or higher unless the issue already has child issues. Agents should create smaller child issues and put estimates on those children instead of directly taking large leaf work.
+
 Example `issue_comment` input:
 
 ```json
@@ -406,6 +424,7 @@ The issue detail view supports:
 - Editing Markdown description.
 - Previewing sanitized Markdown.
 - Changing status, priority, assignee, and tags.
+- Setting or clearing story point estimates.
 - Adding Markdown comments.
 - Viewing parent, children, blockers, and blocked-by issues.
 - Adding/removing blockers.

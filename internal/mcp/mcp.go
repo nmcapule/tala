@@ -289,6 +289,13 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
+		storyPoints, appErr := nullableIntArgument(raw, "story_points", "Argument must be an integer or null.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := enforceMCPStoryPointBreakdownForCreate(storyPoints); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
 		assignee, appErr := nullableStringArgument(raw, "assignee", "Argument must be a string or null.")
 		if appErr != nil {
 			return toolResult("", nil, appErr)
@@ -303,7 +310,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		}
 		issue, err := s.service.CreateIssue(ctx, username, app.CreateIssueRequest{
 			Title: title, DescriptionMarkdown: descriptionMarkdown, Priority: priority,
-			Assignee: assignee, TagNames: tagNames, ParentIssueID: parentIssueID,
+			StoryPoints: storyPoints, Assignee: assignee, TagNames: tagNames, ParentIssueID: parentIssueID,
 		})
 		return toolResult("Created issue "+issue.ID+".", issue, err)
 	case "issue_update":
@@ -339,6 +346,13 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
+		storyPoints, appErr := optionalNullableIntPointerArgument(raw, "story_points", "Argument must be an integer or null.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := s.enforceMCPStoryPointBreakdownForUpdate(ctx, issueID, storyPoints); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
 		if _, ok := fields["assignee"]; ok {
 			value, appErr := nullableStringArgument(raw, "assignee", "Argument must be a string or null.")
 			if appErr != nil {
@@ -355,6 +369,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 			DescriptionMarkdown: descriptionMarkdown,
 			Status:              status,
 			Priority:            priority,
+			StoryPoints:         storyPoints,
 			Assignee:            assignee,
 			TagNames:            tagNames,
 			TagNamesSet:         tagNamesSet,
@@ -714,6 +729,8 @@ type compactResourceIssue struct {
 	Title         string          `json:"title"`
 	Status        domain.Status   `json:"status"`
 	Priority      domain.Priority `json:"priority"`
+	StoryPoints   *int            `json:"story_points"`
+	StoryTotal    int             `json:"story_points_total"`
 	Assignee      *string         `json:"assignee"`
 	ParentIssueID *string         `json:"parent_issue_id"`
 	Tags          []compactTag    `json:"tags"`
@@ -742,6 +759,8 @@ func compactIssue(issue domain.Issue) compactResourceIssue {
 		Title:         issue.Title,
 		Status:        issue.Status,
 		Priority:      issue.Priority,
+		StoryPoints:   issue.StoryPoints,
+		StoryTotal:    issue.StoryPointsTotal,
 		Assignee:      issue.Assignee,
 		ParentIssueID: issue.ParentIssueID,
 		Tags:          compactTags(issue.Tags),
@@ -911,7 +930,7 @@ func resourceResult(uri string, data any) map[string]any {
 func capabilities() map[string]any {
 	return map[string]any{
 		"protocolVersion": "2025-06-18",
-		"serverInfo":      map[string]string{"name": "tala", "version": "0.1.0"},
+		"serverInfo":      map[string]string{"name": "tala", "version": "0.2.1"},
 		"capabilities":    map[string]any{"tools": map[string]any{}, "resources": map[string]any{}},
 	}
 }
@@ -932,6 +951,7 @@ func tools() []map[string]any {
 				strProp("title", "Required issue title."),
 				strProp("description_markdown", "Markdown source for the issue description."),
 				enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}, "Issue priority."),
+				nullableIntProp("story_points", "Optional direct Fibonacci story point estimate. Agent-created issues must stay below 8SP; break larger work into child issues."),
 				nullableStrProp("assignee", "Optional assignee username."),
 				arrayProp("tag_names", "Tag names to attach, creating missing tags."),
 				nullableStrProp("parent_issue_id", "Optional parent issue ID."),
@@ -943,6 +963,7 @@ func tools() []map[string]any {
 			strProp("description_markdown", "Markdown source for the issue description."),
 			enumProp("status", []string{"new", "in_progress", "completed", "canceled"}, "Issue status."),
 			enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}, "Issue priority."),
+			nullableIntProp("story_points", "Optional direct Fibonacci story point estimate. Values of 8SP or higher require child issues for agent workflows."),
 			nullableStrProp("assignee", "Optional assignee username; null clears it."),
 			arrayProp("tag_names", "Replacement tag names."),
 		), []string{"username", "issue_id"})),
@@ -1007,6 +1028,14 @@ func strProp(name, description string) map[string]any {
 func nullableStrProp(name, description string) map[string]any {
 	return map[string]any{name: map[string]any{
 		"anyOf":       []map[string]string{{"type": "string"}, {"type": "null"}},
+		"description": description,
+	}}
+}
+
+func nullableIntProp(name, description string) map[string]any {
+	return map[string]any{name: map[string]any{
+		"anyOf":       []map[string]string{{"type": "integer"}, {"type": "null"}},
+		"enum":        []any{1, 2, 3, 5, 8, 13, 21, nil},
 		"description": description,
 	}}
 }
@@ -1157,6 +1186,37 @@ func nullableStringArgument(raw json.RawMessage, name, message string) (*string,
 	return &parsed, nil
 }
 
+func nullableIntArgument(raw json.RawMessage, name, message string) (*int, *domain.AppError) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, domain.NewError(domain.CodeValidationError, "Invalid arguments.", "arguments")
+	}
+	value, ok := fields[name]
+	if !ok || string(value) == "null" {
+		return nil, nil
+	}
+	var parsed int
+	if err := json.Unmarshal(value, &parsed); err != nil {
+		return nil, domain.NewError(domain.CodeValidationError, message, name)
+	}
+	return &parsed, nil
+}
+
+func optionalNullableIntPointerArgument(raw json.RawMessage, name, message string) (**int, *domain.AppError) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, domain.NewError(domain.CodeValidationError, "Invalid arguments.", "arguments")
+	}
+	if _, ok := fields[name]; !ok {
+		return nil, nil
+	}
+	value, appErr := nullableIntArgument(raw, name, message)
+	if appErr != nil {
+		return nil, appErr
+	}
+	return &value, nil
+}
+
 func stringArgument(fields map[string]json.RawMessage, name, message string) (string, *domain.AppError) {
 	var parsed string
 	if err := json.Unmarshal(fields[name], &parsed); err != nil {
@@ -1261,6 +1321,31 @@ func issueFilterArguments(fields map[string]json.RawMessage) (domain.IssueFilter
 		Sort:      sort,
 		Order:     order,
 	}, nil
+}
+
+func enforceMCPStoryPointBreakdownForCreate(storyPoints *int) *domain.AppError {
+	if storyPoints != nil && *storyPoints >= 8 {
+		return domain.NewError(domain.CodeValidationError, "Issues estimated at 8SP or more must be broken down into smaller child issues before agent creation.", "story_points")
+	}
+	return nil
+}
+
+func (s *Server) enforceMCPStoryPointBreakdownForUpdate(ctx context.Context, issueID string, storyPoints **int) *domain.AppError {
+	if storyPoints == nil || *storyPoints == nil || **storyPoints < 8 {
+		return nil
+	}
+	issue, err := s.service.GetIssue(ctx, issueID)
+	if err != nil {
+		var appErr *domain.AppError
+		if errors.As(err, &appErr) {
+			return appErr
+		}
+		return domain.NewError(domain.CodeInternal, "Internal error.", "")
+	}
+	if issue.ChildCount == 0 {
+		return domain.NewError(domain.CodeValidationError, "Issues estimated at 8SP or more must be broken down into smaller child issues before agent updates.", "story_points")
+	}
+	return nil
 }
 
 func usernameArgument(fields map[string]json.RawMessage) (string, *domain.AppError) {

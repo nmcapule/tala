@@ -27,6 +27,8 @@ type Issue struct {
 	DescriptionMarkdown string    `json:"description_markdown"`
 	Status              Status    `json:"status"`
 	Priority            Priority  `json:"priority"`
+	StoryPoints         *int      `json:"story_points"`
+	StoryPointsTotal    int       `json:"story_points_total"`
 	Assignee            *string   `json:"assignee"`
 	CreatedBy           string    `json:"created_by"`
 	ParentIssueID       *string   `json:"parent_issue_id"`
@@ -92,6 +94,15 @@ func ValidStatus(status Status) bool {
 func ValidPriority(priority Priority) bool {
 	switch priority {
 	case PriorityP0, PriorityP1, PriorityP2, PriorityP3, PriorityP4:
+		return true
+	default:
+		return false
+	}
+}
+
+func ValidStoryPoints(points int) bool {
+	switch points {
+	case 1, 2, 3, 5, 8, 13, 21:
 		return true
 	default:
 		return false

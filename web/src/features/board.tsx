@@ -4,7 +4,7 @@ import type { Issue, IssueFilters, Status } from "../types";
 import { api } from "../api";
 import { statuses } from "../constants";
 import { useDelayedBusy } from "../hooks";
-import { emptyFilters, formatDateTime, isResolved, shortID, statusLabel } from "../utils";
+import { emptyFilters, formatDateTime, isResolved, shortID, statusLabel, storyPointLabel } from "../utils";
 import { Badge, EmptyState, LoadingStatus, RequestError, Stat, TagRow } from "../components/common";
 
 export function Board({ issues, totalIssues, filters, hasFilters, loading, showLoading, username, onOpen, onRefresh, onResetFilters, onApplyFilters }: { issues: Issue[]; totalIssues: number; filters: IssueFilters; hasFilters: boolean; loading: boolean; showLoading: boolean; username: string; onOpen: (id: string) => void; onRefresh: () => Promise<void>; onResetFilters: () => void; onApplyFilters: (filters: IssueFilters) => void }) {
@@ -107,6 +107,7 @@ function IssueCard({ issue, dragging, statusDisabled, onDragStart, onDragEnd, on
         <div className="card-title-row"><h3>{issue.title}</h3><span>{shortID(issue.id)}</span></div>
         <div className="meta-row">
           <Badge tone={issue.priority === "P0" || issue.priority === "P1" ? "danger" : "neutral"}>{issue.priority}</Badge>
+          <Badge>{storyPointLabel(issue)}</Badge>
           <Badge tone={isResolved(issue) ? "good" : issue.blocked ? "danger" : "neutral"}>{statusLabel(issue.status)}</Badge>
           <Badge>{issue.assignee || "Unassigned"}</Badge>
           {issue.blocked && <Badge tone="danger">Blocked</Badge>}

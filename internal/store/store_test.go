@@ -160,6 +160,57 @@ func TestMigrateIsIdempotentAndSchemaComplete(t *testing.T) {
 	}
 }
 
+func TestStoryPointsPersistAndRollUpThroughDescendants(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+
+	parentPoints := 3
+	childPoints := 2
+	grandchildPoints := 5
+	parent, err := st.CreateIssue(ctx, IssueInput{Title: "Parent", Status: domain.StatusNew, Priority: domain.PriorityP2, StoryPoints: &parentPoints, CreatedBy: "alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := st.CreateIssue(ctx, IssueInput{Title: "Child", Status: domain.StatusNew, Priority: domain.PriorityP2, StoryPoints: &childPoints, CreatedBy: "alex", ParentIssueID: &parent.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	grandchild, err := st.CreateIssue(ctx, IssueInput{Title: "Grandchild", Status: domain.StatusNew, Priority: domain.PriorityP2, StoryPoints: &grandchildPoints, CreatedBy: "alex", ParentIssueID: &child.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parentDetail, err := st.GetIssue(ctx, parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parentDetail.StoryPoints == nil || *parentDetail.StoryPoints != parentPoints || parentDetail.StoryPointsTotal != 10 {
+		t.Fatalf("expected parent direct 3SP and total 10SP, got direct=%v total=%d", parentDetail.StoryPoints, parentDetail.StoryPointsTotal)
+	}
+	childDetail, err := st.GetIssue(ctx, child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if childDetail.StoryPointsTotal != 7 {
+		t.Fatalf("expected child total 7SP, got %d", childDetail.StoryPointsTotal)
+	}
+	grandchildDetail, err := st.GetIssue(ctx, grandchild.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if grandchildDetail.StoryPointsTotal != 5 {
+		t.Fatalf("expected grandchild total 5SP, got %d", grandchildDetail.StoryPointsTotal)
+	}
+
+	same, err := st.UpdateIssue(ctx, parent.ID, IssueUpdate{StoryPoints: &parentDetail.StoryPoints})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !same.UpdatedAt.Equal(parentDetail.UpdatedAt) {
+		t.Fatalf("expected no-op story point update to preserve updated_at, got %s want %s", same.UpdatedAt, parentDetail.UpdatedAt)
+	}
+}
+
 func TestRelationshipNoOpsPreserveUpdatedAt(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()

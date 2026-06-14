@@ -9,6 +9,8 @@ export type Issue = {
   description_markdown: string;
   status: Status;
   priority: Priority;
+  story_points?: number | null;
+  story_points_total: number;
   assignee?: string | null;
   created_by: string;
   parent_issue_id?: string | null;

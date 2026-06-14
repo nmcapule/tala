@@ -84,7 +84,36 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
 	}
+	if err := s.ensureIssueStoryPointsColumn(ctx); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (s *Store) ensureIssueStoryPointsColumn(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(issues)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, columnType string
+		var notNull int
+		var defaultValue any
+		var pk int
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
+			return err
+		}
+		if name == "story_points" {
+			return rows.Err()
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `ALTER TABLE issues ADD COLUMN story_points INTEGER CHECK (story_points IN (1, 2, 3, 5, 8, 13, 21))`)
+	return err
 }
 
 type IssueInput struct {
@@ -92,6 +121,7 @@ type IssueInput struct {
 	DescriptionMarkdown string
 	Status              domain.Status
 	Priority            domain.Priority
+	StoryPoints         *int
 	Assignee            *string
 	CreatedBy           string
 	ParentIssueID       *string
@@ -103,6 +133,7 @@ type IssueUpdate struct {
 	DescriptionMarkdown *string
 	Status              *domain.Status
 	Priority            *domain.Priority
+	StoryPoints         **int
 	Assignee            **string
 	TagNames            []string
 	ReplaceTags         bool
@@ -116,6 +147,7 @@ func (s *Store) CreateIssue(ctx context.Context, in IssueInput) (domain.Issue, e
 		DescriptionMarkdown: in.DescriptionMarkdown,
 		Status:              in.Status,
 		Priority:            in.Priority,
+		StoryPoints:         in.StoryPoints,
 		Assignee:            in.Assignee,
 		CreatedBy:           in.CreatedBy,
 		ParentIssueID:       in.ParentIssueID,
@@ -123,8 +155,8 @@ func (s *Store) CreateIssue(ctx context.Context, in IssueInput) (domain.Issue, e
 		UpdatedAt:           now,
 	}
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `INSERT INTO issues (id,title,description_markdown,status,priority,assignee,created_by,parent_issue_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-			issue.ID, issue.Title, issue.DescriptionMarkdown, issue.Status, issue.Priority, nullable(issue.Assignee), issue.CreatedBy, nullable(issue.ParentIssueID), formatTime(issue.CreatedAt), formatTime(issue.UpdatedAt))
+		_, err := tx.ExecContext(ctx, `INSERT INTO issues (id,title,description_markdown,status,priority,story_points,assignee,created_by,parent_issue_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+			issue.ID, issue.Title, issue.DescriptionMarkdown, issue.Status, issue.Priority, nullableInt(issue.StoryPoints), nullable(issue.Assignee), issue.CreatedBy, nullable(issue.ParentIssueID), formatTime(issue.CreatedAt), formatTime(issue.UpdatedAt))
 		if err != nil {
 			return err
 		}
@@ -158,6 +190,10 @@ func (s *Store) UpdateIssue(ctx context.Context, id string, up IssueUpdate) (dom
 		scalarsChanged = scalarsChanged || existing.Priority != *up.Priority
 		existing.Priority = *up.Priority
 	}
+	if up.StoryPoints != nil {
+		scalarsChanged = scalarsChanged || !sameIntPtr(existing.StoryPoints, *up.StoryPoints)
+		existing.StoryPoints = *up.StoryPoints
+	}
 	if up.Assignee != nil {
 		scalarsChanged = scalarsChanged || !sameStringPtr(existing.Assignee, *up.Assignee)
 		existing.Assignee = *up.Assignee
@@ -168,8 +204,8 @@ func (s *Store) UpdateIssue(ctx context.Context, id string, up IssueUpdate) (dom
 	}
 	existing.UpdatedAt = time.Now().UTC()
 	err = s.withTx(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE issues SET title=?, description_markdown=?, status=?, priority=?, assignee=?, updated_at=? WHERE id=?`,
-			existing.Title, existing.DescriptionMarkdown, existing.Status, existing.Priority, nullable(existing.Assignee), formatTime(existing.UpdatedAt), id)
+		_, err := tx.ExecContext(ctx, `UPDATE issues SET title=?, description_markdown=?, status=?, priority=?, story_points=?, assignee=?, updated_at=? WHERE id=?`,
+			existing.Title, existing.DescriptionMarkdown, existing.Status, existing.Priority, nullableInt(existing.StoryPoints), nullable(existing.Assignee), formatTime(existing.UpdatedAt), id)
 		if err != nil {
 			return err
 		}
@@ -185,6 +221,13 @@ func (s *Store) UpdateIssue(ctx context.Context, id string, up IssueUpdate) (dom
 }
 
 func sameStringPtr(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
+func sameIntPtr(a, b *int) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
 	}
@@ -226,7 +269,7 @@ func normalizedNameSet(names []string) map[string]bool {
 }
 
 func (s *Store) GetIssue(ctx context.Context, id string) (domain.Issue, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT id,title,description_markdown,status,priority,assignee,created_by,parent_issue_id,created_at,updated_at FROM issues WHERE id=?`, id)
+	row := s.db.QueryRowContext(ctx, `SELECT id,title,description_markdown,status,priority,story_points,assignee,created_by,parent_issue_id,created_at,updated_at FROM issues WHERE id=?`, id)
 	issue, err := scanIssue(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -300,7 +343,7 @@ func (s *Store) ListIssues(ctx context.Context, filters domain.IssueFilters) ([]
 			OR EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = i.id AND lower(c.body_markdown) LIKE ?))`)
 		args = append(args, q, q, q, q, q, q, q, q, q)
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT i.id,i.title,i.description_markdown,i.status,i.priority,i.assignee,i.created_by,i.parent_issue_id,i.created_at,i.updated_at FROM issues i WHERE `+strings.Join(clauses, " AND ")+issueOrderBy(filters), args...)
+	rows, err := s.db.QueryContext(ctx, `SELECT i.id,i.title,i.description_markdown,i.status,i.priority,i.story_points,i.assignee,i.created_by,i.parent_issue_id,i.created_at,i.updated_at FROM issues i WHERE `+strings.Join(clauses, " AND ")+issueOrderBy(filters), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -591,16 +634,20 @@ func (s *Store) hydrateIssue(ctx context.Context, issue *domain.Issue, detail bo
 	if err != nil {
 		return err
 	}
+	issue.StoryPointsTotal, err = s.storyPointsTotal(ctx, issue.ID)
+	if err != nil {
+		return err
+	}
 	if detail {
-		issue.Children, err = s.relatedIssues(ctx, `SELECT id,title,description_markdown,status,priority,assignee,created_by,parent_issue_id,created_at,updated_at FROM issues WHERE parent_issue_id=? ORDER BY updated_at DESC, id ASC`, issue.ID)
+		issue.Children, err = s.relatedIssues(ctx, `SELECT id,title,description_markdown,status,priority,story_points,assignee,created_by,parent_issue_id,created_at,updated_at FROM issues WHERE parent_issue_id=? ORDER BY updated_at DESC, id ASC`, issue.ID)
 		if err != nil {
 			return err
 		}
-		issue.Blockers, err = s.relatedIssues(ctx, `SELECT i.id,i.title,i.description_markdown,i.status,i.priority,i.assignee,i.created_by,i.parent_issue_id,i.created_at,i.updated_at FROM issues i JOIN issue_blockers ib ON ib.blocker_issue_id=i.id WHERE ib.issue_id=? ORDER BY i.updated_at DESC, i.id ASC`, issue.ID)
+		issue.Blockers, err = s.relatedIssues(ctx, `SELECT i.id,i.title,i.description_markdown,i.status,i.priority,i.story_points,i.assignee,i.created_by,i.parent_issue_id,i.created_at,i.updated_at FROM issues i JOIN issue_blockers ib ON ib.blocker_issue_id=i.id WHERE ib.issue_id=? ORDER BY i.updated_at DESC, i.id ASC`, issue.ID)
 		if err != nil {
 			return err
 		}
-		issue.BlockedBy, err = s.relatedIssues(ctx, `SELECT i.id,i.title,i.description_markdown,i.status,i.priority,i.assignee,i.created_by,i.parent_issue_id,i.created_at,i.updated_at FROM issues i JOIN issue_blockers ib ON ib.issue_id=i.id WHERE ib.blocker_issue_id=? ORDER BY i.updated_at DESC, i.id ASC`, issue.ID)
+		issue.BlockedBy, err = s.relatedIssues(ctx, `SELECT i.id,i.title,i.description_markdown,i.status,i.priority,i.story_points,i.assignee,i.created_by,i.parent_issue_id,i.created_at,i.updated_at FROM issues i JOIN issue_blockers ib ON ib.issue_id=i.id WHERE ib.blocker_issue_id=? ORDER BY i.updated_at DESC, i.id ASC`, issue.ID)
 		if err != nil {
 			return err
 		}
@@ -726,6 +773,26 @@ func (s *Store) isBlocked(ctx context.Context, issueID string) (bool, error) {
 	return count > 0, err
 }
 
+func (s *Store) storyPointsTotal(ctx context.Context, issueID string) (int, error) {
+	var total sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `
+WITH RECURSIVE descendants(id, story_points) AS (
+  SELECT id, story_points FROM issues WHERE id=?
+  UNION ALL
+  SELECT i.id, i.story_points
+  FROM issues i
+  JOIN descendants d ON i.parent_issue_id = d.id
+)
+SELECT coalesce(sum(coalesce(story_points, 0)), 0) FROM descendants`, issueID).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+	if !total.Valid {
+		return 0, nil
+	}
+	return int(total.Int64), nil
+}
+
 func (s *Store) count(ctx context.Context, query, id string) (int, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx, query, id).Scan(&count)
@@ -756,11 +823,13 @@ type scanner interface {
 func scanIssue(row scanner) (domain.Issue, error) {
 	var issue domain.Issue
 	var assignee, parent sql.NullString
+	var storyPoints sql.NullInt64
 	var created, updated string
-	err := row.Scan(&issue.ID, &issue.Title, &issue.DescriptionMarkdown, &issue.Status, &issue.Priority, &assignee, &issue.CreatedBy, &parent, &created, &updated)
+	err := row.Scan(&issue.ID, &issue.Title, &issue.DescriptionMarkdown, &issue.Status, &issue.Priority, &storyPoints, &assignee, &issue.CreatedBy, &parent, &created, &updated)
 	if err != nil {
 		return domain.Issue{}, err
 	}
+	issue.StoryPoints = intPtrFromNull(storyPoints)
 	issue.Assignee = ptrFromNull(assignee)
 	issue.ParentIssueID = ptrFromNull(parent)
 	issue.CreatedAt, err = parseTime(created)
@@ -791,11 +860,26 @@ func nullable(v *string) any {
 	return *v
 }
 
+func nullableInt(v *int) any {
+	if v == nil {
+		return nil
+	}
+	return *v
+}
+
 func ptrFromNull(v sql.NullString) *string {
 	if !v.Valid {
 		return nil
 	}
 	return &v.String
+}
+
+func intPtrFromNull(v sql.NullInt64) *int {
+	if !v.Valid {
+		return nil
+	}
+	value := int(v.Int64)
+	return &value
 }
 
 func formatTime(t time.Time) string {

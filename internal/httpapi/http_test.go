@@ -118,6 +118,14 @@ func TestRESTIssueWorkflowAndValidation(t *testing.T) {
 	if invalidScalarBody.Error.Code != domain.CodeValidationError || invalidScalarBody.Error.Field != "title" {
 		t.Fatalf("expected create title validation error, got %#v", invalidScalarBody.Error)
 	}
+	invalidCreateStoryPoints := doJSON(t, handler, http.MethodPost, "/api/issues", "alex", map[string]any{"title": "Invalid create SP", "story_points": 4})
+	if invalidCreateStoryPoints.Code != http.StatusBadRequest {
+		t.Fatalf("expected create story_points validation, got %d %s", invalidCreateStoryPoints.Code, invalidCreateStoryPoints.Body.String())
+	}
+	decodeBody(t, invalidCreateStoryPoints, &invalidScalarBody)
+	if invalidScalarBody.Error.Code != domain.CodeValidationError || invalidScalarBody.Error.Field != "story_points" {
+		t.Fatalf("expected create story_points validation error, got %#v", invalidScalarBody.Error)
+	}
 
 	blocked := createIssue(t, handler, "Blocked issue", "P1", []string{"mcp", "api"})
 	blocker := createIssue(t, handler, "Blocker issue", "P2", []string{"frontend"})
@@ -260,6 +268,30 @@ func TestRESTIssueWorkflowAndValidation(t *testing.T) {
 	decodeBody(t, setAssignee, &assigned)
 	if assigned.Assignee == nil || *assigned.Assignee != "sam" {
 		t.Fatalf("expected assignee to be set, got %#v", assigned.Assignee)
+	}
+	setStoryPoints := doJSON(t, handler, http.MethodPatch, "/api/issues/"+blocked.ID, "alex", map[string]any{"story_points": 8})
+	if setStoryPoints.Code != http.StatusOK {
+		t.Fatalf("expected REST to allow 8SP direct estimate, got %d %s", setStoryPoints.Code, setStoryPoints.Body.String())
+	}
+	decodeBody(t, setStoryPoints, &assigned)
+	if assigned.StoryPoints == nil || *assigned.StoryPoints != 8 || assigned.StoryPointsTotal != 8 {
+		t.Fatalf("expected 8SP direct and total from REST update, got direct=%v total=%d", assigned.StoryPoints, assigned.StoryPointsTotal)
+	}
+	invalidStoryPoints := doJSON(t, handler, http.MethodPatch, "/api/issues/"+blocked.ID, "alex", map[string]any{"story_points": 4})
+	if invalidStoryPoints.Code != http.StatusBadRequest {
+		t.Fatalf("expected update story_points validation, got %d %s", invalidStoryPoints.Code, invalidStoryPoints.Body.String())
+	}
+	decodeBody(t, invalidStoryPoints, &invalidScalarBody)
+	if invalidScalarBody.Error.Code != domain.CodeValidationError || invalidScalarBody.Error.Field != "story_points" {
+		t.Fatalf("expected update story_points validation error, got %#v", invalidScalarBody.Error)
+	}
+	clearStoryPoints := doJSON(t, handler, http.MethodPatch, "/api/issues/"+blocked.ID, "alex", map[string]any{"story_points": nil})
+	if clearStoryPoints.Code != http.StatusOK {
+		t.Fatalf("clear story_points failed: %d %s", clearStoryPoints.Code, clearStoryPoints.Body.String())
+	}
+	decodeBody(t, clearStoryPoints, &assigned)
+	if assigned.StoryPoints != nil || assigned.StoryPointsTotal != 0 {
+		t.Fatalf("expected story_points to clear, got direct=%v total=%d", assigned.StoryPoints, assigned.StoryPointsTotal)
 	}
 	assertIssueFilter(t, handler, "/api/issues?status=in_progress", blocked.ID)
 	assertIssueFilter(t, handler, "/api/issues?assignee=sam", blocked.ID)

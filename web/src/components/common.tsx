@@ -5,7 +5,7 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import type { ActionNotice, Comment, Issue, Tag } from "../types";
 import { uploadImage } from "../api";
-import { isResolved, statusLabel, tagStyle } from "../utils";
+import { isResolved, statusLabel, storyPointLabel, tagStyle } from "../utils";
 import { useDelayedBusy } from "../hooks";
 
 export function RequestError({ message, onRetry, onDismiss, compact = false }: { message: string; onRetry?: () => void; onDismiss?: () => void; compact?: boolean }) {
@@ -90,6 +90,7 @@ export function NavButton({ active, icon, label, onClick }: { active: boolean; i
 export function IssueMeta({ issue, compact = false }: { issue: Issue; compact?: boolean }) {
   return <div className={`issue-meta ${compact ? "compact" : ""}`}>
     <Badge tone={issue.priority === "P0" || issue.priority === "P1" ? "danger" : "neutral"}>{issue.priority}</Badge>
+    <Badge>{storyPointLabel(issue)}</Badge>
     <Badge tone={isResolved(issue) ? "good" : issue.blocked ? "danger" : "neutral"}>{statusLabel(issue.status)}</Badge>
     {!compact && <Badge>{issue.assignee || "Unassigned"}</Badge>}
     {issue.blocked && <Badge tone="danger">Blocked</Badge>}

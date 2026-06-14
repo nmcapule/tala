@@ -306,7 +306,7 @@ curl -fsS -X POST "$base/mcp" \
   -H 'Accept: application/json, text/event-stream' \
   -D /tmp/tala-smoke-initialize.headers \
   -d '{"jsonrpc":"2.0","id":9,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"tala-smoke","version":"0.0.0"},"capabilities":{}}}' >/tmp/tala-smoke-initialize.json
-bun -e 'let d=require("/tmp/tala-smoke-initialize.json"); if(d.error || d.result?.protocolVersion !== "2025-06-18" || d.result?.serverInfo?.name !== "tala" || d.result?.serverInfo?.version !== "0.1.0" || !d.result?.capabilities?.tools || !d.result?.capabilities?.resources) process.exit(1)'
+bun -e 'let d=require("/tmp/tala-smoke-initialize.json"); if(d.error || d.result?.protocolVersion !== "2025-06-18" || d.result?.serverInfo?.name !== "tala" || d.result?.serverInfo?.version !== "0.2.1" || !d.result?.capabilities?.tools || !d.result?.capabilities?.resources) process.exit(1)'
 grep -qi '^MCP-Protocol-Version: 2025-06-18' /tmp/tala-smoke-initialize.headers
 
 mcp_get_code="$(

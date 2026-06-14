@@ -77,11 +77,26 @@ The default database path is `.tala/tala.db`. Use `-db`, `TALA_DB`, or the Makef
 
 - Username-only local identity for issue edits, comments, and agent coordination.
 - Board columns for `new`, `in_progress`, `completed`, and `canceled`, with drag/drop and status-select updates.
-- Issue detail editing for title, Markdown description, status, priority, assignee, tags, parent, blockers, and comments.
+- Issue detail editing for title, Markdown description, status, priority, story points, assignee, tags, parent, blockers, and comments.
 - Markdown source preservation with sanitized preview rendering in the frontend.
 - Hierarchy and blocker planning views for parent/child work and dependency chains.
 - Tag management with named color tokens and custom hex colors.
 - Search and filtering by text, status, priority, assignee, tag, parent, and blocker.
+
+## Story Points
+
+Issues can carry an optional direct Fibonacci story point estimate: `1`, `2`, `3`, `5`, `8`, `13`, or `21`. API and MCP responses also include `story_points_total`, which adds the issue's direct estimate to all child and descendant estimates. A `2SP` child therefore contributes `2SP` to its parent and each ancestor.
+
+Sizing guide:
+
+- `1SP`: very easy, quick task.
+- `2SP`: fairly easy task that still needs a human assignee to think a bit.
+- `3SP`: about a day of human work.
+- `5SP`: about two days of human work.
+- `8SP`: about a week; agents must break this down into smaller child issues.
+- `13SP` and `21SP`: large planning estimates; agents must break these down into smaller child issues.
+
+The REST API and web UI can record large direct estimates for human planning. MCP agent mutation tools reject direct `8SP+` estimates on leaf issues so agent work is decomposed first.
 
 ## Verification
 
@@ -157,7 +172,7 @@ Issues:
 - `GET /api/issues/{id}`
 - `PATCH /api/issues/{id}`
 
-`GET /api/issues` accepts `status`, `priority`, `assignee`, `tag`, `id`, `parent_id`, `blocked_by`, `blocker_of`, `state`, `q`, `sort`, and `order`. Valid states are `open`, `blocked`, and `done`; valid sort fields are `priority`, `updated_at`, `created_at`, `title`, and `status`.
+`GET /api/issues` accepts `status`, `priority`, `assignee`, `tag`, `id`, `parent_id`, `blocked_by`, `blocker_of`, `state`, `q`, `sort`, and `order`. Valid states are `open`, `blocked`, and `done`; valid sort fields are `priority`, `updated_at`, `created_at`, `title`, and `status`. Issue create and update bodies accept nullable `story_points`; responses include `story_points` and computed `story_points_total`.
 
 Comments:
 
@@ -213,6 +228,8 @@ Tools:
 - `issue_set_priority`
 
 Use `image_upload` with a local screenshot path to get a Markdown image link for issue descriptions or comments. This is the preferred agent path for `agent-browser` screenshots.
+
+`issue_create` and `issue_update` accept nullable `story_points`. Agent tools reject direct `8SP+` estimates unless the issue already has child issues, requiring large work to be broken down first.
 
 Resources:
 

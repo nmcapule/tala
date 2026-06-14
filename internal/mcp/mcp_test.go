@@ -71,7 +71,7 @@ func TestMCPInitializeAdvertisesServerCapabilities(t *testing.T) {
 		t.Fatalf("expected initialize protocol version 2025-06-18, got %#v", result["protocolVersion"])
 	}
 	serverInfo := result["serverInfo"].(map[string]any)
-	if serverInfo["name"] != "tala" || serverInfo["version"] != "0.1.0" {
+	if serverInfo["name"] != "tala" || serverInfo["version"] != "0.2.1" {
 		t.Fatalf("unexpected server info: %#v", serverInfo)
 	}
 	capabilities := result["capabilities"].(map[string]any)
@@ -184,9 +184,14 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 		"title":                "Parent issue",
 		"description_markdown": "Parent **markdown**",
 		"priority":             "P2",
+		"story_points":         3,
 		"tag_names":            []string{"planning"},
 	})
 	parentID := structuredID(t, parent)
+	parentIssue := parent["result"].(map[string]any)["structuredContent"].(map[string]any)
+	if parentIssue["story_points"] != float64(3) || parentIssue["story_points_total"] != float64(3) {
+		t.Fatalf("expected MCP create to return story points, got %#v", parentIssue)
+	}
 	nullCreateTags := callToolExpectToolError(t, server, "issue_create", map[string]any{
 		"username":  "alex",
 		"title":     "Null create tags",
@@ -206,6 +211,7 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 		{args: map[string]any{"username": "alex", "title": 42}, field: "title"},
 		{args: map[string]any{"username": "alex", "title": "Invalid create description", "description_markdown": 42}, field: "description_markdown"},
 		{args: map[string]any{"username": "alex", "title": "Invalid create priority", "priority": 42}, field: "priority"},
+		{args: map[string]any{"username": "alex", "title": "Invalid create story points", "story_points": "3"}, field: "story_points"},
 		{args: map[string]any{"username": "alex", "title": "Invalid create assignee", "assignee": 42}, field: "assignee"},
 		{args: map[string]any{"username": "alex", "title": "Invalid create parent", "parent_issue_id": 42}, field: "parent_issue_id"},
 		{args: map[string]any{"username": "alex", "title": "Invalid create tags", "tag_names": 42}, field: "tag_names"},
@@ -213,14 +219,36 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 		invalidCreate := callToolExpectToolError(t, server, "issue_create", tt.args)
 		assertToolAppError(t, invalidCreate, domain.CodeValidationError, tt.field)
 	}
+	largeCreate := callToolExpectToolError(t, server, "issue_create", map[string]any{
+		"username":     "alex",
+		"title":        "Too large for agent create",
+		"story_points": 8,
+	})
+	assertToolAppError(t, largeCreate, domain.CodeValidationError, "story_points")
 	child := callTool(t, server, "issue_create", map[string]any{
 		"username":        "alex",
 		"title":           "Child issue",
 		"priority":        "P1",
+		"story_points":    2,
 		"assignee":        "sam",
 		"parent_issue_id": parentID,
 	})
 	childID := structuredID(t, child)
+	leafLargeUpdate := callToolExpectToolError(t, server, "issue_update", map[string]any{
+		"username":     "alex",
+		"issue_id":     childID,
+		"story_points": 8,
+	})
+	assertToolAppError(t, leafLargeUpdate, domain.CodeValidationError, "story_points")
+	parentLargeUpdate := callTool(t, server, "issue_update", map[string]any{
+		"username":     "alex",
+		"issue_id":     parentID,
+		"story_points": 8,
+	})
+	parentLargeIssue := parentLargeUpdate["result"].(map[string]any)["structuredContent"].(map[string]any)
+	if parentLargeIssue["story_points"] != float64(8) || parentLargeIssue["story_points_total"] != float64(10) {
+		t.Fatalf("expected parent direct 8SP and total 10SP after child rollup, got %#v", parentLargeIssue)
+	}
 	updated := callTool(t, server, "issue_update", map[string]any{
 		"username": "alex",
 		"issue_id": childID,
@@ -280,6 +308,8 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 		{args: map[string]any{"username": "alex", "issue_id": childID, "description_markdown": 42}, field: "description_markdown"},
 		{args: map[string]any{"username": "alex", "issue_id": childID, "status": 42}, field: "status"},
 		{args: map[string]any{"username": "alex", "issue_id": childID, "priority": 42}, field: "priority"},
+		{args: map[string]any{"username": "alex", "issue_id": childID, "story_points": "2"}, field: "story_points"},
+		{args: map[string]any{"username": "alex", "issue_id": childID, "story_points": 4}, field: "story_points"},
 	} {
 		invalidUpdate := callToolExpectToolError(t, server, "issue_update", tt.args)
 		assertToolAppError(t, invalidUpdate, domain.CodeValidationError, tt.field)
@@ -1123,7 +1153,7 @@ func containsIssueID(issues []map[string]any, id string) bool {
 
 func assertCompactResourceIssueShape(t *testing.T, issue map[string]any) {
 	t.Helper()
-	for _, field := range []string{"id", "title", "status", "priority", "assignee", "parent_issue_id", "tags", "child_count", "comment_count", "blocked"} {
+	for _, field := range []string{"id", "title", "status", "priority", "story_points", "story_points_total", "assignee", "parent_issue_id", "tags", "child_count", "comment_count", "blocked"} {
 		if _, ok := issue[field]; !ok {
 			t.Fatalf("compact resource issue missing field %q in %#v", field, issue)
 		}

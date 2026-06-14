@@ -1,7 +1,7 @@
 import { ArrowRight, Blocks, Check, ChevronRight, CircleDot, GitBranch } from "lucide-react";
 import type React from "react";
 import type { Issue } from "../types";
-import { isResolved, relationshipTitles, resolvedIssues, unresolvedIssues } from "../utils";
+import { isResolved, relationshipTitles, resolvedIssues, storyPointLabel, unresolvedIssues } from "../utils";
 import { Badge, IssueMeta, Stat } from "../components/common";
 
 export function Hierarchy({ issues, onOpen }: { issues: Issue[]; onOpen: (id: string) => void }) {
@@ -12,6 +12,7 @@ export function Hierarchy({ issues, onOpen }: { issues: Issue[]; onOpen: (id: st
   const roots = issues.filter((issue) => !issue.parent_issue_id || !issueIDs.has(issue.parent_issue_id));
   const childLinks = issues.filter((issue) => issue.parent_issue_id && issueIDs.has(issue.parent_issue_id)).length;
   const blockedIssues = issues.filter((issue) => issue.blocked).length;
+  const totalStoryPoints = roots.reduce((sum, issue) => sum + issue.story_points_total, 0);
 
   if (roots.length === 0) {
     return <section className="empty-state"><h2>No hierarchy roots</h2><p>Every visible issue has a parent. Clear a parent relationship to create a root.</p></section>;
@@ -21,6 +22,7 @@ export function Hierarchy({ issues, onOpen }: { issues: Issue[]; onOpen: (id: st
     <div className="board-stats">
       <Stat label="Roots" value={roots.length} />
       <Stat label="Child links" value={childLinks} tone="good" />
+      <Stat label="Total SP" value={totalStoryPoints} />
       <Stat label="Blocked" value={blockedIssues} tone={blockedIssues > 0 ? "danger" : "neutral"} />
     </div>
     {roots.map((issue) => <TreeNode key={issue.id} issue={issue} all={issues} onOpen={onOpen} depth={0} />)}
@@ -43,6 +45,7 @@ function TreeNode({ issue, all, onOpen, depth }: { issue: Issue; all: Issue[]; o
         <IssueMeta issue={issue} />
         <div className="tree-node-summary" aria-label="Hierarchy summary">
           <span><GitBranch size={13} />{children.length} {children.length === 1 ? "child" : "children"}</span>
+          <span>{storyPointLabel(issue)}</span>
           <span className={activeBlockers > 0 ? "danger" : ""}><Blocks size={13} />{activeBlockers} blockers</span>
           {activeDependents > 0 && <span>{activeDependents} waiting</span>}
         </div>

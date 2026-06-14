@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { AlertCircle, Plus } from "lucide-react";
 import type { ActionNotice, Issue, IssueFilters, Priority, Tag } from "../types";
 import { api } from "../api";
-import { filterKeys, priorities, sortOptions, states, statuses } from "../constants";
+import { filterKeys, priorities, sortOptions, states, statuses, storyPointChoices } from "../constants";
 import { useDelayedBusy } from "../hooks";
 import { emptyFilters, includeSelectedIssue, insertAtCursor, issueOptionLabel, matchesIssueSearch, optionalText, splitTags, statusLabel, tagStyle } from "../utils";
 import { ActionStatus, ImageUploadControl, LoadingStatus, Markdown, Segment, Sheet } from "../components/common";
@@ -58,6 +58,7 @@ export function CreateSheet({ username, issues, onClose, onCreated }: { username
   const [description, setDescription] = useState("");
   const [descriptionTab, setDescriptionTab] = useState<"source" | "preview">("source");
   const [priority, setPriority] = useState<Priority>("P2");
+  const [storyPoints, setStoryPoints] = useState("");
   const [assignee, setAssignee] = useState("");
   const [parentID, setParentID] = useState("");
   const [parentQuery, setParentQuery] = useState("");
@@ -89,6 +90,10 @@ export function CreateSheet({ username, issues, onClose, onCreated }: { username
     )}
     <ImageUploadControl username={username} disabled={creating} onUploaded={(markdown) => insertAtCursor(descriptionRef, description, setDescription, markdown)} />
     <label>Priority</label><select value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>{priorities.map((p) => <option key={p}>{p}</option>)}</select>
+    <label>Story points</label><select value={storyPoints} onChange={(e) => setStoryPoints(e.target.value)}>
+      <option value="">No estimate</option>
+      {storyPointChoices.map((points) => <option key={points} value={points}>{points}SP</option>)}
+    </select>
     <label>Assignee</label><input value={assignee} onChange={(e) => setAssignee(e.target.value)} placeholder="Unassigned" />
     <label>Parent issue</label>
     <div className="relationship-control">
@@ -109,7 +114,7 @@ export function CreateSheet({ username, issues, onClose, onCreated }: { username
       if (!title.trim()) return setTitleError("Title is required.");
       setCreating(true);
       try {
-        const issue = await api("/api/issues", { method: "POST", username, body: { title, description_markdown: description, priority, assignee: optionalText(assignee), parent_issue_id: parentID || null, tag_names: splitTags(tags) } });
+        const issue = await api("/api/issues", { method: "POST", username, body: { title, description_markdown: description, priority, story_points: storyPoints ? Number(storyPoints) : null, assignee: optionalText(assignee), parent_issue_id: parentID || null, tag_names: splitTags(tags) } });
         setSubmitNotice({ tone: "success", message: "Issue created." });
         onCreated(issue);
       } catch (err) {

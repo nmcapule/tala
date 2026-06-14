@@ -25,8 +25,8 @@ export function isDescendantOf(candidateID: string, ancestorID: string, issues: 
 }
 
 export function issueOptionLabel(issue: Issue) {
-  const assignee = issue.assignee ? `@${issue.assignee}` : "unassigned";
-  return `${issue.title} - ${issue.priority} - ${statusLabel(issue.status)} - ${assignee}`;
+	const assignee = issue.assignee ? `@${issue.assignee}` : "unassigned";
+	return `${issue.title} - ${issue.priority} - ${storyPointLabel(issue)} - ${statusLabel(issue.status)} - ${assignee}`;
 }
 
 export function matchesIssueSearch(issue: Issue, query: string) {
@@ -37,6 +37,8 @@ export function matchesIssueSearch(issue: Issue, query: string) {
     issue.description_markdown,
     issue.id,
     issue.priority,
+    issue.story_points == null ? "" : `${issue.story_points}SP`,
+    `${issue.story_points_total}SP`,
     statusLabel(issue.status),
     issue.created_by,
     issue.assignee || "",
@@ -146,7 +148,14 @@ export function hasActiveFilters(filters: IssueFilters) {
 }
 
 export function statusLabel(status: Status) {
-  return status.replace("_", " ");
+	return status.replace("_", " ");
+}
+
+export function storyPointLabel(issue: Pick<Issue, "story_points" | "story_points_total">) {
+  if (issue.story_points == null && issue.story_points_total === 0) return "No SP";
+  if (issue.story_points == null) return `${issue.story_points_total}SP total`;
+  if (issue.story_points_total !== issue.story_points) return `${issue.story_points}SP/${issue.story_points_total}SP`;
+  return `${issue.story_points}SP`;
 }
 
 export function shortID(id: string) {

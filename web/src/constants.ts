@@ -2,6 +2,7 @@ import type { Priority, Status } from "./types";
 
 export const statuses: Status[] = ["new", "in_progress", "completed", "canceled"];
 export const priorities: Priority[] = ["P0", "P1", "P2", "P3", "P4"];
+export const storyPointChoices = [1, 2, 3, 5, 8, 13, 21] as const;
 export const filterKeys = ["q", "status", "assignee", "priority", "tag", "id", "parent_id", "blocked_by", "blocker_of", "state", "sort", "order"] as const;
 export const states = ["open", "blocked", "done"];
 export const sortOptions = [

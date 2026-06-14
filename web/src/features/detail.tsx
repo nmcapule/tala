@@ -2,15 +2,16 @@ import React, { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, Link2, Pencil, RefreshCw, Send, X } from "lucide-react";
 import type { ActionNotice, Comment, Issue, IssueFilters } from "../types";
 import { ApiError, api } from "../api";
-import { priorities, statuses } from "../constants";
+import { priorities, statuses, storyPointChoices } from "../constants";
 import { useDelayedBusy } from "../hooks";
-import { emptyFilters, insertAtCursor, optionalText, shortID, splitTags, statusLabel } from "../utils";
+import { emptyFilters, insertAtCursor, optionalText, shortID, splitTags, statusLabel, storyPointLabel } from "../utils";
 import { ActionStatus, Badge, CommentView, EmptyState, ImageUploadControl, LoadingStatus, Markdown, RequestError, Segment, TagRow } from "../components/common";
 
 export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssue, onApplyFilters, onRefresh, onTagsChanged, onClose }: { issue: Issue; detailLoading: boolean; username: string; issues: Issue[]; onOpenIssue: (id: string) => void; onApplyFilters: (filters: IssueFilters) => void; onRefresh: () => Promise<void>; onTagsChanged: () => Promise<void>; onClose: () => void }) {
   const [title, setTitle] = useState(issue.title);
   const [tagDraft, setTagDraft] = useState((issue.tags || []).map((tag) => tag.name).join(", "));
   const [assigneeDraft, setAssigneeDraft] = useState(issue.assignee || "");
+  const [storyPointsDraft, setStoryPointsDraft] = useState(issue.story_points == null ? "" : String(issue.story_points));
   const [tab, setTab] = useState<"source" | "preview">("source");
   const [draft, setDraft] = useState(issue.description_markdown);
   const [editingInlineFields, setEditingInlineFields] = useState(false);
@@ -41,6 +42,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
   useEffect(() => setTitle(issue.title), [issue.id, issue.title]);
   useEffect(() => setTagDraft(savedTagDraft), [issue.id, savedTagDraft]);
   useEffect(() => setAssigneeDraft(issue.assignee || ""), [issue.id, issue.assignee]);
+  useEffect(() => setStoryPointsDraft(issue.story_points == null ? "" : String(issue.story_points)), [issue.id, issue.story_points]);
   useEffect(() => setDraft(issue.description_markdown), [issue.id, issue.description_markdown]);
   useEffect(() => setParentID(issue.parent_issue_id || ""), [issue.id, issue.parent_issue_id]);
   useEffect(() => {
@@ -60,6 +62,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
     setTitle(issue.title);
     setTagDraft(savedTagDraft);
     setAssigneeDraft(issue.assignee || "");
+    setStoryPointsDraft(issue.story_points == null ? "" : String(issue.story_points));
     setDraft(issue.description_markdown);
     setTab("source");
     setTitleError("");
@@ -70,6 +73,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
     return title !== issue.title
       || tagDraft !== savedTagDraft
       || assigneeDraft !== (issue.assignee || "")
+      || storyPointsDraft !== (issue.story_points == null ? "" : String(issue.story_points))
       || draft !== issue.description_markdown;
   }
 
@@ -194,6 +198,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
         <div className="meta-row detail-meta-row">
           <Badge tone={isResolved(issue) ? "good" : issue.blocked ? "danger" : "neutral"}>{statusLabel(issue.status)}</Badge>
           <Badge tone={issue.priority === "P0" || issue.priority === "P1" ? "danger" : "neutral"}>{issue.priority}</Badge>
+          <Badge>{storyPointLabel(issue)}</Badge>
           <Badge>{issue.assignee || "Unassigned"}</Badge>
           <Badge>Created by {issue.created_by}</Badge>
         </div>
@@ -221,6 +226,13 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
             <div className="meta-row detail-meta-row">
               <select value={issue.status} disabled={actionBusy} onChange={(e) => patch({ status: e.target.value }, { pending: "Saving status...", success: "Status saved." })}>{statuses.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select>
               <select value={issue.priority} disabled={actionBusy} onChange={(e) => patch({ priority: e.target.value }, { pending: "Saving priority...", success: "Priority saved." })}>{priorities.map((p) => <option key={p} value={p}>{p}</option>)}</select>
+              <select value={storyPointsDraft} disabled={actionBusy} onChange={(e) => {
+                setStoryPointsDraft(e.target.value);
+                patch({ story_points: e.target.value ? Number(e.target.value) : null }, { pending: "Saving story points...", success: "Story points saved." });
+              }} aria-label="Story points">
+                <option value="">No SP</option>
+                {storyPointChoices.map((points) => <option key={points} value={points}>{points}SP</option>)}
+              </select>
             </div>
             <div className="edit-field">
               <label>Assignee</label>
@@ -473,6 +485,7 @@ function RelationshipItem({ issue, onRemove, onOpen }: { issue: Issue; onRemove?
     <button className="relationship-link" onClick={() => onOpen?.(issue.id)}>{issue.title}</button>
     <Badge tone={isResolved(issue) ? "good" : issue.blocked ? "danger" : "neutral"}>{statusLabel(issue.status)}</Badge>
     <Badge tone={issue.priority === "P0" || issue.priority === "P1" ? "danger" : "neutral"}>{issue.priority}</Badge>
+    <Badge>{storyPointLabel(issue)}</Badge>
     {onRemove && <button className="icon-button small" onClick={() => onRemove(issue)} aria-label={`Remove ${issue.title}`}><X size={15} /></button>}
   </div>;
 }

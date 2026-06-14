@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS issues (
   description_markdown TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL CHECK (status IN ('new', 'in_progress', 'completed', 'canceled')),
   priority TEXT NOT NULL CHECK (priority IN ('P0', 'P1', 'P2', 'P3', 'P4')),
+  story_points INTEGER CHECK (story_points IN (1, 2, 3, 5, 8, 13, 21)),
   assignee TEXT,
   created_by TEXT NOT NULL,
   parent_issue_id TEXT REFERENCES issues(id),
