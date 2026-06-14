@@ -1,4 +1,4 @@
-import { ArrowRight, Blocks, Check, ChevronRight, CircleDot } from "lucide-react";
+import { ArrowRight, Blocks, Check, ChevronRight, CircleDot, GitBranch } from "lucide-react";
 import type React from "react";
 import type { Issue } from "../types";
 import { isResolved, relationshipTitles, resolvedIssues, unresolvedIssues } from "../utils";
@@ -8,20 +8,50 @@ export function Hierarchy({ issues, onOpen }: { issues: Issue[]; onOpen: (id: st
   if (issues.length === 0) {
     return <section className="empty-state"><h2>No hierarchy yet</h2><p>Create parent and child issues to build a planning tree.</p></section>;
   }
-  const roots = issues.filter((issue) => !issue.parent_issue_id);
-  return <div className="planning">{roots.map((issue) => <TreeNode key={issue.id} issue={issue} all={issues} onOpen={onOpen} depth={0} />)}</div>;
+  const issueIDs = new Set(issues.map((issue) => issue.id));
+  const roots = issues.filter((issue) => !issue.parent_issue_id || !issueIDs.has(issue.parent_issue_id));
+  const childLinks = issues.filter((issue) => issue.parent_issue_id && issueIDs.has(issue.parent_issue_id)).length;
+  const blockedIssues = issues.filter((issue) => issue.blocked).length;
+
+  if (roots.length === 0) {
+    return <section className="empty-state"><h2>No hierarchy roots</h2><p>Every visible issue has a parent. Clear a parent relationship to create a root.</p></section>;
+  }
+
+  return <div className="planning hierarchy-planning">
+    <div className="board-stats">
+      <Stat label="Roots" value={roots.length} />
+      <Stat label="Child links" value={childLinks} tone="good" />
+      <Stat label="Blocked" value={blockedIssues} tone={blockedIssues > 0 ? "danger" : "neutral"} />
+    </div>
+    {roots.map((issue) => <TreeNode key={issue.id} issue={issue} all={issues} onOpen={onOpen} depth={0} />)}
+  </div>;
 }
 
 function TreeNode({ issue, all, onOpen, depth }: { issue: Issue; all: Issue[]; onOpen: (id: string) => void; depth: number }) {
   const children = all.filter((child) => child.parent_issue_id === issue.id);
-  return <div className="tree-node" style={{ marginLeft: depth * 14 }}>
+  const activeBlockers = unresolvedIssues(issue.blockers).length;
+  const activeDependents = unresolvedIssues(issue.blocked_by).length;
+  const depthLabel = depth === 0 ? "Root" : `Level ${depth + 1}`;
+  return <section className={`tree-node ${depth === 0 ? "root" : ""}`} style={{ "--tree-depth": Math.min(depth, 4) } as React.CSSProperties}>
     <button className="tree-node-button" onClick={() => onOpen(issue.id)}>
-      <CircleDot size={16} />
-      <span className="tree-node-title">{issue.title}</span>
-      <IssueMeta issue={issue} compact />
+      <div className="tree-node-icon"><CircleDot size={16} /></div>
+      <div className="tree-node-main">
+        <div className="tree-node-title-row">
+          <span className="tree-depth-label">{depthLabel}</span>
+          <span className="tree-node-title">{issue.title}</span>
+        </div>
+        <IssueMeta issue={issue} />
+        <div className="tree-node-summary" aria-label="Hierarchy summary">
+          <span><GitBranch size={13} />{children.length} {children.length === 1 ? "child" : "children"}</span>
+          <span className={activeBlockers > 0 ? "danger" : ""}><Blocks size={13} />{activeBlockers} blockers</span>
+          {activeDependents > 0 && <span>{activeDependents} waiting</span>}
+        </div>
+      </div>
     </button>
-    {children.map((child) => <TreeNode key={child.id} issue={child} all={all} onOpen={onOpen} depth={depth + 1} />)}
-  </div>;
+    {children.length > 0 ? <div className="tree-children">
+      {children.map((child) => <TreeNode key={child.id} issue={child} all={all} onOpen={onOpen} depth={depth + 1} />)}
+    </div> : depth === 0 && <div className="tree-empty-children">No child issues under this root yet.</div>}
+  </section>;
 }
 
 export function Blockers({ issues, onOpen }: { issues: Issue[]; onOpen: (id: string) => void }) {
