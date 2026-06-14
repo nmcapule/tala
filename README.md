@@ -160,7 +160,7 @@ Mutating REST requests require `X-Tala-Username`.
 
 The MCP endpoint is `/mcp`. It supports JSON-RPC initialize, tool listing/calls, resource listing, resource-template listing, and resource reads.
 
-For Codex integration in this repo, `.codex/config.toml` auto-starts the same MCP surface over stdio:
+For Codex integration, the repo-local `tala-project-tracker` plugin starts the same MCP surface over stdio:
 
 ```sh
 go run ./cmd/tala-mcp-stdio -db tala.db
@@ -192,23 +192,23 @@ Resources:
 
 Mutating MCP tools require a `username` argument on this local server. Tala does not establish an MCP session user label yet, so omitted or blank usernames return a `missing_username` validation error.
 
-## Agent Skill
+## Codex Plugin
 
-This repo includes an installable Codex agent skill for using Tala as a project-local planning and issue-tracking ledger:
+This repo includes a local Codex plugin that packages the Tala MCP server and agent skill together:
 
-- `skills/tala-project-tracker`
+- `plugins/tala-project-tracker`
 
-To install it locally, copy or symlink that directory into your Codex skills directory:
+Install the repo marketplace, then add the plugin:
 
 ```sh
-mkdir -p ~/.codex/skills
-cp -R skills/tala-project-tracker ~/.codex/skills/
+codex plugin marketplace add .agents/plugins
+codex plugin add tala-project-tracker@tala
 ```
 
-Then invoke it in Codex with:
+Then invoke the skill in Codex with:
 
 ```text
 $tala-project-tracker plan this work in Tala and keep the issue updated
 ```
 
-The project-scoped Codex config auto-starts Tala MCP over stdio against `tala.db`. The skill defaults to `tala.db` in the project root and falls back to the helper at `http://127.0.0.1:8081` when MCP tools are unavailable.
+The plugin starts the Tala MCP server over stdio against the current workspace's `tala.db`. Set `TALA_DB` to use another database, or `TALA_WORKSPACE_ROOT` if Codex launches the plugin from outside the repo. The skill falls back to the helper at `http://127.0.0.1:8081` when MCP tools are unavailable.

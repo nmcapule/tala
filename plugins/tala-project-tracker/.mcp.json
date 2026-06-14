@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "tala": {
+      "command": "./scripts/tala-mcp-stdio.sh",
+      "args": []
+    }
+  }
+}

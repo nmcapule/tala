@@ -1,8 +1,0 @@
-[mcp_servers.tala]
-command = "./.codex/tala-mcp-stdio.sh"
-args = ["-db", "tala.db"]
-cwd = "/home/exedev/projects/tala"
-enabled = true
-required = false
-startup_timeout_sec = 120
-tool_timeout_sec = 60

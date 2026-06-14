@@ -1,0 +1,26 @@
+{
+  "name": "tala-project-tracker",
+  "version": "0.1.0",
+  "description": "Use Tala as a local project issue tracker for Codex work.",
+  "author": {
+    "name": "Tala"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Tala Project Tracker",
+    "shortDescription": "Local issue tracking for Codex agents.",
+    "longDescription": "Adds Tala workflow guidance and MCP tools for planning, issue tracking, progress updates, and handoff in a project-local tala.db.",
+    "developerName": "Tala",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use Tala to plan this work and keep the issue updated.",
+      "Check my Tala backlog.",
+      "Leave a Tala handoff for the next agent."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

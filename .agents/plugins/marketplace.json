@@ -1,0 +1,20 @@
+{
+  "name": "tala",
+  "interface": {
+    "displayName": "Tala"
+  },
+  "plugins": [
+    {
+      "name": "tala-project-tracker",
+      "source": {
+        "source": "local",
+        "path": "./plugins/tala-project-tracker"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

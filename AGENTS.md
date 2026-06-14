@@ -11,15 +11,17 @@ Undocumented local endpoints are internal infrastructure and should not be used.
 
 Always use this repo's own Tala skill as the durable project work ledger:
 
-- Skill: `skills/tala-project-tracker`
+- Codex plugin: `plugins/tala-project-tracker`
+- Skill: `tala-project-tracker` from the plugin
 - Database: `tala.db` at the project root
-- Codex MCP: project `.codex/config.toml` auto-starts `.codex/tala-mcp-stdio.sh -db tala.db` from the project root
+- Codex MCP: the repo-local plugin starts `tala` over stdio against the workspace `tala.db`
 - HTTP server URL for browser/helper workflows: `http://127.0.0.1:8081`
 - HTTP server command for browser/helper workflows: `make own-db`
 
 Use the Tala skill for planning, implementation tracking, progress updates, and
 handoff notes. Prefer a configured Tala MCP server when available. If MCP is
-unavailable, fall back to `skills/tala-project-tracker/scripts/tala_helper.py`.
+unavailable, fall back to
+`plugins/tala-project-tracker/skills/tala-project-tracker/scripts/tala_helper.py`.
 Do not use another Tala database unless the user explicitly requests it.
 
 Before finishing any work that creates temporary issues, tags, comments, or
