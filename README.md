@@ -288,7 +288,7 @@ Then invoke the skill in Codex with:
 $tala-project-tracker plan this work in Tala and keep the issue updated
 ```
 
-The plugin starts the Tala MCP server over stdio against the current workspace's `.tala/tala.db`. Set `TALA_DB` to use another database, or `TALA_WORKSPACE_ROOT` if Codex launches the plugin from outside the repo.
+The plugin starts the Tala MCP server over stdio against the current workspace's `.tala/tala.db`. Each Codex project gets its own database by default. Set `TALA_DB` to use an explicit database, `TALA_WORKSPACE_ROOT` to choose the project root used for the default database path, or `TALA_SOURCE_ROOT` if the plugin cannot infer the Tala source checkout used to run the MCP server.
 
 ### Codex Plugin Release
 

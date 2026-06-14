@@ -19,7 +19,8 @@ Only read `.tala/tala.db` directly for diagnostics or verification when MCP tool
 
 - Default DB: `.tala/tala.db` in the project root.
 - Plugin MCP DB override: `TALA_DB`.
-- Plugin workspace override: `TALA_WORKSPACE_ROOT`.
+- Plugin workspace override, used for the default DB path: `TALA_WORKSPACE_ROOT`.
+- Plugin source checkout override, used to run the MCP server: `TALA_SOURCE_ROOT`.
 - Default username: `TALA_USERNAME` or `agent`.
 - For detailed taxonomy, priority rules, and comment templates, read `references/tala-workflow.md`.
 
