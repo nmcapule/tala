@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 
 	"tala/internal/app"
@@ -16,6 +17,7 @@ import (
 
 //go:embed static/*
 var staticFS embed.FS
+var versionedAssetPattern = regexp.MustCompile(`(?:^|[.-])[0-9a-fA-F]{8,}(?:[.-]|$)`)
 
 func main() {
 	addr := flag.String("addr", env("TALA_ADDR", "127.0.0.1:8080"), "listen address")
@@ -77,7 +79,11 @@ func setStaticCacheHeaders(w http.ResponseWriter, path string) {
 		return
 	}
 	if strings.HasPrefix(path, "assets/") {
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		if versionedAssetPattern.MatchString(path) {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			return
+		}
+		w.Header().Set("Cache-Control", "no-cache")
 		return
 	}
 	w.Header().Set("Cache-Control", "no-cache")
