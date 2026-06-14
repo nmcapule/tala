@@ -381,6 +381,7 @@ func TestIssueQuerySearchIncludesCommentsTagsAndMetadata(t *testing.T) {
 	}
 
 	for _, query := range []string{
+		"search target",
 		"raw **markdown**",
 		"comment-only searchable",
 		"frontend",
@@ -463,6 +464,48 @@ func TestIssueRelationshipStateFiltersAndSorting(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertIssueIDs(t, results, []string{parent.ID, child.ID, done.ID, blocker.ID})
+}
+
+func TestIssueOrderingUsesStableTieBreakers(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+
+	first, err := st.CreateIssue(ctx, IssueInput{Title: "Same title", Status: domain.StatusNew, Priority: domain.PriorityP2, CreatedBy: "alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := st.CreateIssue(ctx, IssueInput{Title: "same title", Status: domain.StatusNew, Priority: domain.PriorityP2, CreatedBy: "alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	third, err := st.CreateIssue(ctx, IssueInput{Title: "SAME TITLE", Status: domain.StatusNew, Priority: domain.PriorityP2, CreatedBy: "alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.ExecContext(ctx, `UPDATE issues SET created_at=?, updated_at=?`, "2026-06-12T00:00:00Z", "2026-06-12T00:00:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	want := sortedIDs(first.ID, second.ID, third.ID)
+
+	for _, filters := range []domain.IssueFilters{
+		{},
+		{Sort: "priority", Order: "asc"},
+		{Sort: "priority", Order: "desc"},
+		{Sort: "updated_at", Order: "asc"},
+		{Sort: "updated_at", Order: "desc"},
+		{Sort: "created_at", Order: "asc"},
+		{Sort: "created_at", Order: "desc"},
+		{Sort: "title", Order: "asc"},
+		{Sort: "title", Order: "desc"},
+		{Sort: "status", Order: "asc"},
+		{Sort: "status", Order: "desc"},
+	} {
+		results, err := st.ListIssues(ctx, filters)
+		if err != nil {
+			t.Fatalf("filters %#v failed: %v", filters, err)
+		}
+		assertIssueIDs(t, results, want)
+	}
 }
 
 func assertCommentBodies(t *testing.T, comments []domain.Comment, want []string) {
