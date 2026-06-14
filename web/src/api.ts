@@ -1,5 +1,19 @@
 import type { UploadedImage } from "./types";
 
+export class ApiError extends Error {
+  code?: string;
+  field?: string;
+  status: number;
+
+  constructor(status: number, message: string, code?: string, field?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.field = field;
+  }
+}
+
 export async function api(path: string, options: { method?: string; body?: unknown; username?: string } = {}) {
   const res = await fetch(path, {
     method: options.method || "GET",
@@ -7,7 +21,7 @@ export async function api(path: string, options: { method?: string; body?: unkno
     body: options.body === undefined ? undefined : JSON.stringify(options.body)
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || "Request failed.");
+  if (!res.ok) throw new ApiError(res.status, data.error?.message || "Request failed.", data.error?.code, data.error?.field);
   return data;
 }
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, Link2, Pencil, RefreshCw, Send, X } from "lucide-react";
 import type { ActionNotice, Comment, Issue, IssueFilters } from "../types";
-import { api } from "../api";
+import { ApiError, api } from "../api";
 import { priorities, statuses } from "../constants";
 import { useDelayedBusy } from "../hooks";
 import { emptyFilters, insertAtCursor, optionalText, shortID, splitTags, statusLabel } from "../utils";
@@ -105,7 +105,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
     }, undefined, feedback);
   }
 
-  async function runAction(fn: () => Promise<void>, setInlineError?: (message: string) => void, feedback: { pending: string; success: string } = { pending: "Saving changes...", success: "Changes saved." }) {
+  async function runAction(fn: () => Promise<void>, setInlineError?: (message: string) => void, feedback: { pending: string; success: string } = { pending: "Saving changes...", success: "Changes saved." }, routeError?: (err: unknown, message: string) => boolean) {
     if (actionBusy) return;
     setActionError("");
     setActionNotice(null);
@@ -118,6 +118,9 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
     } catch (err) {
       const message = err instanceof Error ? err.message : "Request failed.";
       setActionNotice(null);
+      if (routeError?.(err, message)) {
+        return;
+      }
       if (setInlineError) {
         setInlineError(message);
       } else {
@@ -155,6 +158,19 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
   const blockerQueryHasMatches = blockerCandidates.length > 0;
   function applyRelationshipFilter(partial: Partial<IssueFilters>) {
     onApplyFilters({ ...emptyFilters(), ...partial });
+  }
+
+  function routeRelationshipError(err: unknown, message: string) {
+    if (!(err instanceof ApiError)) return false;
+    if (err.field === "parent_issue_id") {
+      setParentError(message);
+      return true;
+    }
+    if (err.field === "blocker_issue_id") {
+      setBlockerError(message);
+      return true;
+    }
+    return false;
   }
 
   return (
@@ -276,7 +292,10 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
         <div className="edit-field">
           <label>Parent issue</label>
           <div className="relationship-control">
-            <input value={parentQuery} onChange={(e) => setParentQuery(e.target.value)} placeholder="Search parent issues..." aria-label="Search parent issues" />
+            <input value={parentQuery} onChange={(e) => {
+              setParentQuery(e.target.value);
+              setParentError("");
+            }} placeholder="Search parent issues..." aria-label="Search parent issues" />
             <PickerFeedback
               visibleCount={parentCandidates.length}
               totalCount={validParentCandidates.length}
@@ -289,6 +308,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
             <select value={parentID} onChange={(e) => {
               setParentID(e.target.value);
               setActionNotice(null);
+              setParentError("");
             }}>
               <option value="">No parent</option>
               {parentCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{issueOptionLabel(candidate)}</option>)}
@@ -296,7 +316,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
             <button className="button" disabled={actionBusy || parentSelectionUnchanged} onClick={() => runAction(async () => {
               await api(`/api/issues/${issue.id}/parent`, { method: "PUT", body: { parent_issue_id: parentID || null }, username });
               await onRefresh();
-            }, setParentError, { pending: "Updating parent...", success: "Parent updated." })}>Set</button>
+            }, setParentError, { pending: "Updating parent...", success: "Parent updated." }, routeRelationshipError)}>Set</button>
           </div>
           {parentError && <div className="field-error inline-error"><AlertCircle size={15} />{parentError}</div>}
         </div>
@@ -306,13 +326,16 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
         <BlockerRelationshipList issues={issue.blockers || []} onRemove={(blocker) => runAction(async () => {
           await api(`/api/issues/${issue.id}/blockers/${blocker.id}`, { method: "DELETE", username });
           await onRefresh();
-        }, setBlockerError, { pending: "Removing blocker...", success: "Blocker removed." })} onOpen={onOpenIssue} />
+        }, setBlockerError, { pending: "Removing blocker...", success: "Blocker removed." }, routeRelationshipError)} onOpen={onOpenIssue} />
         <BlockingRelationshipList active={activeBlockedBy} resolved={resolvedBlockedBy} currentIssueResolved={isResolved(issue)} onOpen={onOpenIssue} />
 
         <div className="edit-field">
           <label>Add blocker</label>
           <div className="relationship-control">
-            <input value={blockerQuery} onChange={(e) => setBlockerQuery(e.target.value)} placeholder="Search blocker issues..." aria-label="Search blocker issues" />
+            <input value={blockerQuery} onChange={(e) => {
+              setBlockerQuery(e.target.value);
+              setBlockerError("");
+            }} placeholder="Search blocker issues..." aria-label="Search blocker issues" />
             <PickerFeedback
               visibleCount={blockerCandidates.length}
               totalCount={validBlockerCandidates.length}
@@ -323,6 +346,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
           <select ref={blockerSelectRef} value={blockerID} onChange={(e) => {
             setBlockerID(e.target.value);
             setActionNotice(null);
+            setBlockerError("");
           }}>
             <option value="">Select blocker issue</option>
             <optgroup label={`Unresolved blockers (${unresolvedBlockerCandidates.length})`}>
@@ -341,7 +365,7 @@ export function IssueDetail({ issue, detailLoading, username, issues, onOpenIssu
               setBlockerQuery("");
               if (blockerSelectRef.current) blockerSelectRef.current.value = "";
               await onRefresh();
-            }, setBlockerError, { pending: "Adding blocker...", success: "Blocker added." })}>Add blocker</button>
+            }, setBlockerError, { pending: "Adding blocker...", success: "Blocker added." }, routeRelationshipError)}>Add blocker</button>
           </div>
           {blockerError && <div className="field-error inline-error"><AlertCircle size={15} />{blockerError}</div>}
         </div>
