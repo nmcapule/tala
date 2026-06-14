@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+	"time"
 
 	"tala/internal/domain"
 )
@@ -125,6 +126,84 @@ func TestOpenCreatesDatabaseParentDirectory(t *testing.T) {
 	}
 	if err := st.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRelationshipNoOpsPreserveUpdatedAt(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+
+	parent, err := st.CreateIssue(ctx, IssueInput{Title: "Parent", Status: domain.StatusNew, Priority: domain.PriorityP2, CreatedBy: "alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := st.CreateIssue(ctx, IssueInput{Title: "Child", Status: domain.StatusNew, Priority: domain.PriorityP2, CreatedBy: "alex", ParentIssueID: &parent.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocker, err := st.CreateIssue(ctx, IssueInput{Title: "Blocker", Status: domain.StatusNew, Priority: domain.PriorityP2, CreatedBy: "alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sameParent, err := st.SetParent(ctx, child.ID, &parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sameParent.UpdatedAt.Equal(child.UpdatedAt) {
+		t.Fatalf("expected same parent no-op to preserve updated_at, got %s want %s", sameParent.UpdatedAt, child.UpdatedAt)
+	}
+
+	time.Sleep(time.Millisecond)
+	cleared, err := st.SetParent(ctx, child.ID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cleared.UpdatedAt.After(sameParent.UpdatedAt) {
+		t.Fatalf("expected parent clear to advance updated_at from %s to %s", sameParent.UpdatedAt, cleared.UpdatedAt)
+	}
+
+	alreadyCleared, err := st.SetParent(ctx, child.ID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !alreadyCleared.UpdatedAt.Equal(cleared.UpdatedAt) {
+		t.Fatalf("expected already-cleared parent no-op to preserve updated_at, got %s want %s", alreadyCleared.UpdatedAt, cleared.UpdatedAt)
+	}
+
+	time.Sleep(time.Millisecond)
+	if err := st.AddBlocker(ctx, child.ID, blocker.ID); err != nil {
+		t.Fatal(err)
+	}
+	withBlocker, err := st.GetIssue(ctx, child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !withBlocker.UpdatedAt.After(alreadyCleared.UpdatedAt) {
+		t.Fatalf("expected blocker add to advance updated_at from %s to %s", alreadyCleared.UpdatedAt, withBlocker.UpdatedAt)
+	}
+
+	if err := st.AddBlocker(ctx, child.ID, blocker.ID); err != nil {
+		t.Fatal(err)
+	}
+	afterDuplicateBlocker, err := st.GetIssue(ctx, child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !afterDuplicateBlocker.UpdatedAt.Equal(withBlocker.UpdatedAt) {
+		t.Fatalf("expected duplicate blocker no-op to preserve updated_at, got %s want %s", afterDuplicateBlocker.UpdatedAt, withBlocker.UpdatedAt)
+	}
+
+	missingBlockerID := "issue_missing_blocker"
+	if err := st.RemoveBlocker(ctx, child.ID, missingBlockerID); err != nil {
+		t.Fatal(err)
+	}
+	afterMissingRemove, err := st.GetIssue(ctx, child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !afterMissingRemove.UpdatedAt.Equal(afterDuplicateBlocker.UpdatedAt) {
+		t.Fatalf("expected missing blocker removal no-op to preserve updated_at, got %s want %s", afterMissingRemove.UpdatedAt, afterDuplicateBlocker.UpdatedAt)
 	}
 }
 

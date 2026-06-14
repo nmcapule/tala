@@ -403,7 +403,14 @@ func (s *Store) ListComments(ctx context.Context, issueID string) ([]domain.Comm
 }
 
 func (s *Store) SetParent(ctx context.Context, issueID string, parentID *string) (domain.Issue, error) {
-	_, err := s.db.ExecContext(ctx, `UPDATE issues SET parent_issue_id=?, updated_at=? WHERE id=?`, nullable(parentID), formatTime(time.Now().UTC()), issueID)
+	existing, err := s.GetIssue(ctx, issueID)
+	if err != nil {
+		return domain.Issue{}, err
+	}
+	if sameStringPtr(existing.ParentIssueID, parentID) {
+		return existing, nil
+	}
+	_, err = s.db.ExecContext(ctx, `UPDATE issues SET parent_issue_id=?, updated_at=? WHERE id=?`, nullable(parentID), formatTime(time.Now().UTC()), issueID)
 	if err != nil {
 		return domain.Issue{}, err
 	}
