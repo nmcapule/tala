@@ -501,6 +501,8 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	planningResource := readResource(t, server, "tala://planning")
 	var planning struct {
 		ChildrenByParent map[string][]map[string]any `json:"children_by_parent"`
+		Hierarchy        []hierarchyContext          `json:"hierarchy"`
+		Dependencies     []dependencyContext         `json:"dependencies"`
 		Blocked          []dependencyContext         `json:"blocked"`
 		Blocking         []dependencyContext         `json:"blocking"`
 	}
@@ -509,6 +511,24 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	}
 	if !containsIssueID(planning.ChildrenByParent[parentID], childID) {
 		t.Fatalf("planning resource missing child in children_by_parent: %#v", planning.ChildrenByParent)
+	}
+	if !hierarchyHasChild(planning.Hierarchy, parentID, childID) {
+		t.Fatalf("planning resource hierarchy missing parent child shape: %#v", planning.Hierarchy)
+	}
+	if !hierarchyHasParent(planning.Hierarchy, childID, parentID) {
+		t.Fatalf("planning resource hierarchy missing child parent shape: %#v", planning.Hierarchy)
+	}
+	if !dependencyHas(planning.Dependencies, childID, blockerID) {
+		t.Fatalf("planning resource dependencies missing unresolved blocker split: %#v", planning.Dependencies)
+	}
+	if !dependencyHasResolved(planning.Dependencies, childID, resolvedBlockerID) {
+		t.Fatalf("planning resource dependencies missing resolved blocker split: %#v", planning.Dependencies)
+	}
+	if dependencyHas(planning.Dependencies, resolvedBlockerID, childID) {
+		t.Fatalf("planning resource dependencies treated completed blocker as active: %#v", planning.Dependencies)
+	}
+	if !dependencyHasResolvedBlockedBy(planning.Dependencies, resolvedBlockerID, childID) {
+		t.Fatalf("planning resource dependencies missing resolved blocked_by split: %#v", planning.Dependencies)
 	}
 	if !dependencyHas(planning.Blocked, childID, blockerID) {
 		t.Fatalf("planning resource missing blocked dependency context: %#v", planning.Blocked)
@@ -528,6 +548,8 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	if !dependencyHasResolvedBlockedBy(planning.Blocking, resolvedBlockerID, childID) {
 		t.Fatalf("planning resource missing completed blocker's resolved dependent context: %#v", planning.Blocking)
 	}
+	assertStableHierarchyContexts(t, planning.Hierarchy)
+	assertStableDependencyContexts(t, planning.Dependencies)
 	assertStableDependencyContexts(t, planning.Blocked)
 	assertStableDependencyContexts(t, planning.Blocking)
 	assertResourceSummariesOmitBulkyFields(t, resourceText(t, board))
@@ -1163,6 +1185,33 @@ func dependencyHasResolvedBlockedBy(contexts []dependencyContext, issueID, relat
 		}
 	}
 	return false
+}
+
+func hierarchyHasChild(contexts []hierarchyContext, issueID, childID string) bool {
+	for _, context := range contexts {
+		if context.Issue.ID == issueID && containsCompactIssueID(context.Children, childID) {
+			return true
+		}
+	}
+	return false
+}
+
+func hierarchyHasParent(contexts []hierarchyContext, issueID, parentID string) bool {
+	for _, context := range contexts {
+		if context.Issue.ID == issueID && context.Parent != nil && context.Parent.ID == parentID {
+			return true
+		}
+	}
+	return false
+}
+
+func assertStableHierarchyContexts(t *testing.T, contexts []hierarchyContext) {
+	t.Helper()
+	for _, context := range contexts {
+		if context.Children == nil {
+			t.Fatalf("expected hierarchy context children to be an array, got nil in %#v", context)
+		}
+	}
 }
 
 func assertStableDependencyContexts(t *testing.T, contexts []dependencyContext) {

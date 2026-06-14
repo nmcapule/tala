@@ -594,6 +594,8 @@ func (s *Server) readResource(ctx context.Context, uri string) (any, *rpcError) 
 				return issue.ParentIssueID == nil
 			})),
 			"children_by_parent": childrenByParent(issues),
+			"hierarchy":          hierarchyContexts(issues),
+			"dependencies":       dependencyContexts(details),
 			"blocked":            blockedContexts(details),
 			"blocking":           blockingContexts(details),
 		}
@@ -701,6 +703,12 @@ type dependencyContext struct {
 	ResolvedBlockedBy   []compactResourceIssue `json:"resolved_blocked_by"`
 }
 
+type hierarchyContext struct {
+	Issue    compactResourceIssue   `json:"issue"`
+	Parent   *compactResourceIssue  `json:"parent"`
+	Children []compactResourceIssue `json:"children"`
+}
+
 type compactResourceIssue struct {
 	ID            string          `json:"id"`
 	Title         string          `json:"title"`
@@ -761,6 +769,51 @@ func childrenByParent(issues []domain.Issue) map[string][]compactResourceIssue {
 		children[parentID] = append(children[parentID], compactIssue(issue))
 	}
 	return children
+}
+
+func hierarchyContexts(issues []domain.Issue) []hierarchyContext {
+	byID := make(map[string]domain.Issue, len(issues))
+	children := childrenByParent(issues)
+	for _, issue := range issues {
+		byID[issue.ID] = issue
+	}
+	contexts := make([]hierarchyContext, 0, len(issues))
+	for _, issue := range issues {
+		context := hierarchyContext{
+			Issue:    compactIssue(issue),
+			Children: children[issue.ID],
+		}
+		if issue.ParentIssueID != nil {
+			if parent, ok := byID[*issue.ParentIssueID]; ok {
+				compactParent := compactIssue(parent)
+				context.Parent = &compactParent
+			}
+		}
+		if context.Children == nil {
+			context.Children = []compactResourceIssue{}
+		}
+		contexts = append(contexts, context)
+	}
+	return contexts
+}
+
+func dependencyContexts(issues []domain.Issue) []dependencyContext {
+	contexts := []dependencyContext{}
+	for _, issue := range issues {
+		if len(issue.Blockers) == 0 && len(issue.BlockedBy) == 0 {
+			continue
+		}
+		contexts = append(contexts, dependencyContext{
+			Issue:               compactIssue(issue),
+			Blockers:            compactIssues(issue.Blockers),
+			UnresolvedBlockers:  unresolvedIssues(issue.Blockers),
+			ResolvedBlockers:    resolvedIssues(issue.Blockers),
+			BlockedBy:           compactIssues(issue.BlockedBy),
+			UnresolvedBlockedBy: unresolvedBlockedBy(issue),
+			ResolvedBlockedBy:   resolvedBlockedBy(issue),
+		})
+	}
+	return contexts
 }
 
 func blockedContexts(issues []domain.Issue) []dependencyContext {
