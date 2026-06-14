@@ -24,6 +24,21 @@
 - Use nested children when a child has multiple phases, such as design, backend, frontend, tests, docs.
 - Keep titles action-oriented and searchable.
 - Put detail in Markdown descriptions and comments, not overly long titles.
+- Format newly filed issue descriptions like this:
+
+```markdown
+**Context**: <detailed description on why this bug exists or is needed>
+
+**References** <optional>
+
+**Action Items**
+
+- [ ] <sample action item 1>
+    - [ ] <sample action subitem>
+- [ ] <...and so on...>
+```
+
+- Omit the `References` section when there are no relevant docs, issues, files, logs, or external links.
 - Link blockers when one issue cannot proceed until another is resolved.
 - Avoid blocker links for simple ordering preferences.
 

@@ -32,7 +32,7 @@ Only use `scripts/tala_helper.py` from this skill against the project-local HTTP
    - MCP: first discover the Tala MCP tools if needed, then use `mcp__tala.issue_search` with a concise query.
    - Helper fallback: `python <skill>/scripts/tala_helper.py search --q "<query>"`
 3. Reuse an existing issue when it clearly matches.
-4. Create a new issue only when no good match exists.
+4. Create a new issue only when no good match exists. Format filed issue descriptions with `Context`, optional `References`, and `Action Items`; see `references/tala-workflow.md`.
 5. For complex work, ensure a parent issue exists and create child issues for independently resumable work. Use nested children only when a child itself needs multiple implementation phases.
 6. Use blockers only for real prerequisites that prevent progress.
 
