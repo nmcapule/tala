@@ -17,7 +17,7 @@ import (
 
 //go:embed static/*
 var staticFS embed.FS
-var versionedAssetPattern = regexp.MustCompile(`(?:^|[.-])[0-9a-fA-F]{8,}(?:[.-]|$)`)
+var versionedAssetPattern = regexp.MustCompile(`(?:^|[.-])(?:[0-9a-fA-F]{8,}|[A-Za-z0-9_-]{8,}\.[^/]+$)`)
 
 func main() {
 	addr := flag.String("addr", env("TALA_ADDR", "127.0.0.1:8080"), "listen address")

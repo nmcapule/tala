@@ -31,6 +31,9 @@ func TestSPAFileServerServesAssetsAndFallsBackToIndex(t *testing.T) {
 		"assets/logo.1a2b3c4d.png": {
 			Data: []byte("png"),
 		},
+		"assets/index-CCYzOabu.js": {
+			Data: []byte("console.log('vite asset');"),
+		},
 	}))
 
 	for _, tt := range []struct {
@@ -43,6 +46,7 @@ func TestSPAFileServerServesAssetsAndFallsBackToIndex(t *testing.T) {
 		{name: "client route", path: "/issues/issue_123", contains: "Tala app shell", cacheControl: "no-store"},
 		{name: "stable asset", path: "/assets/index.js", contains: "console.log('asset');", cacheControl: "no-cache"},
 		{name: "versioned asset", path: "/assets/logo.1a2b3c4d.png", contains: "png", cacheControl: "public, max-age=31536000, immutable"},
+		{name: "vite versioned asset", path: "/assets/index-CCYzOabu.js", contains: "vite asset", cacheControl: "public, max-age=31536000, immutable"},
 	} {
 		req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 		res := httptest.NewRecorder()
