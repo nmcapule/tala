@@ -14,6 +14,34 @@ Use this checklist before cutting a v1 release candidate. Tala v1 is local-first
 
 ## Required Checks
 
+For CI candidate runs, record each command separately even when a Make target overlaps another check:
+
+```sh
+go test ./...
+bun run typecheck
+bun run build
+go build ./cmd/tala
+make verify-production-binary
+```
+
+Then run the smoke checks against a disposable database. Start the server in one shell:
+
+```sh
+go run ./cmd/tala -addr 127.0.0.1:8081 -db /tmp/tala-v1-candidate.db
+```
+
+Run REST and MCP smoke coverage from another shell:
+
+```sh
+make smoke SMOKE_URL=http://127.0.0.1:8081
+```
+
+Run browser smoke coverage against the same disposable database:
+
+```sh
+make browser-smoke SMOKE_URL=http://127.0.0.1:8081 TALA_SMOKE_DB=/tmp/tala-v1-candidate.db
+```
+
 Run static and unit-level checks:
 
 ```sh
