@@ -9,9 +9,9 @@ description: Use Tala as a project-local issue tracker for planning, effort mana
 
 Use Tala as the durable project work ledger. Before meaningful project work, consult Tala. During work, keep the relevant issue updated. At interruption or handoff, leave a comment that lets another agent resume.
 
-Use a configured Tala MCP server named `tala`. When installed through the repo-local Codex plugin, the plugin starts that server over stdio against the current workspace's `.tala/tala.db`; it does not require `make own-db`. Before reading `.tala/tala.db` directly, check whether the MCP tools are already visible. If they are not, use tool discovery/search for "tala issue search create comment update image upload project tracker MCP" with enough result slots to expose the full Tala tool set.
+Use a configured Tala MCP server named `tala`. When installed through the repo-local Codex plugin, the plugin starts that server over stdio against the current workspace's `.tala/tala.db`; it does not require `make own-db`. A missing `.tala/tala.db` must not prevent MCP startup. If the user mentions "init Tala", "initialize Tala", "set up Tala tracking", or similar, ask for permission to create the project-local database, then call `mcp__tala.tala_init`. Do not create `.tala/tala.db` silently before permission. Before reading `.tala/tala.db` directly, check whether the MCP tools are already visible. If they are not, use tool discovery/search for "tala issue search create comment update image upload project tracker MCP" with enough result slots to expose the full Tala tool set.
 
-Expected MCP tools include `mcp__tala.issue_search`, `mcp__tala.issue_get`, `mcp__tala.issue_create`, `mcp__tala.issue_update`, `mcp__tala.issue_comment`, `mcp__tala.image_upload`, and relationship/status helpers such as `issue_set_status`, `issue_set_priority`, `issue_set_parent`, `issue_add_blocker`, and `issue_remove_blocker`. Do not conclude that create/comment/upload tools are unavailable just because an initial low-limit discovery call only returned search/get/status tools.
+Expected MCP tools include `mcp__tala.tala_init`, `mcp__tala.issue_search`, `mcp__tala.issue_get`, `mcp__tala.issue_create`, `mcp__tala.issue_update`, `mcp__tala.issue_comment`, `mcp__tala.image_upload`, and relationship/status helpers such as `issue_set_status`, `issue_set_priority`, `issue_set_parent`, `issue_add_blocker`, and `issue_remove_blocker`. Do not conclude that create/comment/upload tools are unavailable just because an initial low-limit discovery call only returned search/get/status tools.
 
 Only read `.tala/tala.db` directly for diagnostics or verification when MCP tools are unavailable.
 
@@ -22,6 +22,8 @@ Only read `.tala/tala.db` directly for diagnostics or verification when MCP tool
 - Plugin workspace override, used for the default DB path: `TALA_WORKSPACE_ROOT`.
 - Plugin source checkout override, used to run the MCP server: `TALA_SOURCE_ROOT`.
 - Default username: `TALA_USERNAME` or `agent`.
+- Web server script: `plugins/tala-project-tracker/scripts/tala-web-server.sh`.
+- Default web server URL: `http://127.0.0.1:8081`.
 - For detailed taxonomy, priority rules, and comment templates, read `references/tala-workflow.md`.
 
 ## Work Intake

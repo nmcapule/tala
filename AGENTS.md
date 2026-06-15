@@ -16,7 +16,7 @@ Always use this repo's own Tala skill as the durable project work ledger:
 - Database: `.tala/tala.db` under the project root
 - Codex MCP: the repo-local plugin starts `tala` over stdio against the workspace `.tala/tala.db`
 - HTTP server URL for browser workflows: `http://127.0.0.1:8081`
-- HTTP server command for browser workflows: `make own-db`
+- HTTP server command for browser workflows: `plugins/tala-project-tracker/scripts/tala-web-server.sh`
 
 Use the Tala skill for planning, implementation tracking, progress updates, and
 handoff notes. Before reading `.tala/tala.db` directly, check for the

@@ -120,8 +120,8 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	var toolsBody map[string]any
 	decodeRecorder(t, tools, &toolsBody)
 	toolList := toolsBody["result"].(map[string]any)["tools"].([]any)
-	if len(toolList) != 12 {
-		t.Fatalf("expected 12 tools, got %d", len(toolList))
+	if len(toolList) != 13 {
+		t.Fatalf("expected 13 tools, got %d", len(toolList))
 	}
 	firstSchema := toolList[0].(map[string]any)["inputSchema"].(map[string]any)
 	if firstSchema["type"] != "object" || firstSchema["properties"] == nil {
@@ -132,6 +132,7 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	assertRequiredToolProp(t, toolList, "issue_assign", "assignee")
 	assertRequiredToolProp(t, toolList, "issue_set_parent", "parent_issue_id")
 	assertRequiredToolProps(t, toolList, map[string][]string{
+		"tala_init":            nil,
 		"image_upload":         {"username", "path"},
 		"issue_create":         {"username", "title"},
 		"issue_update":         {"username", "issue_id"},
@@ -586,6 +587,73 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	assertResourceSummariesOmitBulkyFields(t, treeText)
 	assertResourceSummariesOmitBulkyFields(t, blockerText)
 	assertResourceSummariesOmitBulkyFields(t, resourceText(t, planningResource))
+}
+
+func TestMCPLazyInitializationCreatesDatabaseOnlyAfterInitTool(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), ".tala", "tala.db")
+	server, err := NewLazy(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := server.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	res := rpcRequest(t, server, "", "initialize", map[string]any{
+		"protocolVersion": "2025-06-18",
+		"clientInfo":      map[string]any{"name": "tala-test", "version": "0.0.0"},
+		"capabilities":    map[string]any{},
+	})
+	if res.Code != http.StatusOK {
+		t.Fatalf("initialize failed: %d %s", res.Code, res.Body.String())
+	}
+	tools := rpcRequest(t, server, "", "tools/list", map[string]any{})
+	if tools.Code != http.StatusOK {
+		t.Fatalf("tools/list failed: %d %s", tools.Code, tools.Body.String())
+	}
+	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
+		t.Fatalf("expected initialize and tools/list not to create %s, stat err=%v", dbPath, err)
+	}
+
+	searchBeforeInit := callToolExpectToolError(t, server, "issue_search", map[string]any{})
+	assertToolAppError(t, searchBeforeInit, domain.CodeConflict, "database")
+	resourceBeforeInit := rpcRequest(t, server, "", "resources/read", map[string]any{"uri": "tala://board"})
+	if resourceBeforeInit.Code != http.StatusOK {
+		t.Fatalf("resource read before init failed: %d %s", resourceBeforeInit.Code, resourceBeforeInit.Body.String())
+	}
+	var resourceBody map[string]any
+	decodeRecorder(t, resourceBeforeInit, &resourceBody)
+	resourceError := resourceBody["error"].(map[string]any)
+	resourceData := resourceError["data"].(map[string]any)
+	if resourceError["message"] != "Tala is not initialized. Ask the user for permission, then call tala_init to create the configured .tala/tala.db." || resourceData["code"] != string(domain.CodeConflict) || resourceData["field"] != "database" {
+		t.Fatalf("unexpected resource not-initialized error: %#v", resourceBody)
+	}
+	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
+		t.Fatalf("expected issue_search before init not to create %s, stat err=%v", dbPath, err)
+	}
+
+	initResult := callTool(t, server, "tala_init", map[string]any{})
+	initContent := initResult["result"].(map[string]any)["structuredContent"].(map[string]any)
+	if initContent["db_path"] != dbPath || initContent["created"] != true || initContent["initialized"] != true {
+		t.Fatalf("unexpected init result: %#v", initContent)
+	}
+	if _, err := os.Stat(dbPath); err != nil {
+		t.Fatalf("expected tala_init to create %s: %v", dbPath, err)
+	}
+
+	searchAfterInit := callTool(t, server, "issue_search", map[string]any{})
+	issues := searchAfterInit["result"].(map[string]any)["structuredContent"].([]any)
+	if len(issues) != 0 {
+		t.Fatalf("expected initialized empty database to have no issues, got %#v", issues)
+	}
+
+	secondInit := callTool(t, server, "tala_init", map[string]any{})
+	secondContent := secondInit["result"].(map[string]any)["structuredContent"].(map[string]any)
+	if secondContent["created"] != false || secondContent["initialized"] != true {
+		t.Fatalf("expected idempotent second init, got %#v", secondContent)
+	}
 }
 
 func TestMCPImageUploadTool(t *testing.T) {

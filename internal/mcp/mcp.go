@@ -8,18 +8,97 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
 
 	"tala/internal/app"
 	"tala/internal/domain"
+	"tala/internal/store"
 )
 
 type Server struct {
-	service *app.Service
+	mu        sync.Mutex
+	service   *app.Service
+	store     *store.Store
+	dbPath    string
+	uploadDir string
 }
 
 func New(service *app.Service) *Server {
 	return &Server{service: service}
+}
+
+func NewLazy(dbPath string) (*Server, error) {
+	server := &Server{
+		dbPath:    strings.TrimSpace(dbPath),
+		uploadDir: app.UploadDirForDBPath(dbPath),
+	}
+	if shouldOpenDBAtStartup(server.dbPath) {
+		if _, err := server.initializeStore(); err != nil {
+			return nil, err
+		}
+	}
+	return server, nil
+}
+
+func shouldOpenDBAtStartup(path string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" || path == ":memory:" || strings.HasPrefix(path, "file:") {
+		return true
+	}
+	_, err := os.Stat(path)
+	return err == nil || !os.IsNotExist(err)
+}
+
+func (s *Server) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.store == nil {
+		return nil
+	}
+	err := s.store.Close()
+	s.store = nil
+	s.service = nil
+	return err
+}
+
+func (s *Server) initializeStore() (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.service != nil {
+		return false, nil
+	}
+	created := !databaseExists(s.dbPath)
+	st, err := store.Open(s.dbPath)
+	if err != nil {
+		return false, err
+	}
+	s.store = st
+	s.service = app.NewServiceWithUploadDir(st, s.uploadDir)
+	return created, nil
+}
+
+func databaseExists(path string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" || path == ":memory:" || strings.HasPrefix(path, "file:") {
+		return true
+	}
+	_, err := os.Stat(path)
+	return err == nil || !os.IsNotExist(err)
+}
+
+func (s *Server) activeService() (*app.Service, *domain.AppError) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.service == nil {
+		return nil, uninitializedError()
+	}
+	return s.service, nil
+}
+
+func uninitializedError() *domain.AppError {
+	return domain.NewError(domain.CodeConflict, "Tala is not initialized. Ask the user for permission, then call tala_init to create the configured .tala/tala.db.", "database")
 }
 
 type request struct {
@@ -245,6 +324,25 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
+	if name == "tala_init" {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		if _, ok := fields["db_path"]; ok {
+			return toolResult("", nil, domain.NewError(domain.CodeValidationError, "tala_init uses the configured database path and does not accept db_path.", "db_path"))
+		}
+		created, err := s.initializeStore()
+		return toolResult("Initialized Tala.", map[string]any{
+			"db_path":     s.dbPath,
+			"created":     created,
+			"initialized": err == nil,
+		}, err)
+	}
+	service, appErr := s.activeService()
+	if appErr != nil {
+		return toolResult("", nil, appErr)
+	}
 	switch name {
 	case "image_upload":
 		var fields map[string]json.RawMessage
@@ -263,7 +361,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		uploaded, err := s.service.UploadImageFile(ctx, username, path, altText)
+		uploaded, err := service.UploadImageFile(ctx, username, path, altText)
 		return toolResult("Uploaded image.", uploaded, err)
 	case "issue_create":
 		var fields map[string]json.RawMessage
@@ -308,7 +406,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		issue, err := s.service.CreateIssue(ctx, username, app.CreateIssueRequest{
+		issue, err := service.CreateIssue(ctx, username, app.CreateIssueRequest{
 			Title: title, DescriptionMarkdown: descriptionMarkdown, Priority: priority,
 			StoryPoints: storyPoints, Assignee: assignee, TagNames: tagNames, ParentIssueID: parentIssueID,
 		})
@@ -350,7 +448,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		if appErr := s.enforceMCPStoryPointBreakdownForUpdate(ctx, issueID, storyPoints); appErr != nil {
+		if appErr := enforceMCPStoryPointBreakdownForUpdate(ctx, service, issueID, storyPoints); appErr != nil {
 			return toolResult("", nil, appErr)
 		}
 		if _, ok := fields["assignee"]; ok {
@@ -364,7 +462,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		issue, err := s.service.UpdateIssue(ctx, issueID, app.UpdateIssueRequest{
+		issue, err := service.UpdateIssue(ctx, issueID, app.UpdateIssueRequest{
 			Title:               title,
 			DescriptionMarkdown: descriptionMarkdown,
 			Status:              status,
@@ -384,7 +482,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		issues, err := s.service.SearchIssues(ctx, filters)
+		issues, err := service.SearchIssues(ctx, filters)
 		return toolResult("Found issues.", issues, err)
 	case "issue_get":
 		var fields map[string]json.RawMessage
@@ -395,7 +493,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		issue, err := s.service.GetIssue(ctx, issueID)
+		issue, err := service.GetIssue(ctx, issueID)
 		return toolResult("Fetched issue "+issueID+".", issue, err)
 	case "issue_comment":
 		var fields map[string]json.RawMessage
@@ -420,7 +518,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		comment, err := s.service.AddComment(ctx, issueID, username, app.CommentRequest{BodyMarkdown: bodyMarkdown})
+		comment, err := service.AddComment(ctx, issueID, username, app.CommentRequest{BodyMarkdown: bodyMarkdown})
 		return toolResult("Added comment.", comment, err)
 	case "issue_set_parent":
 		var fields map[string]json.RawMessage
@@ -442,7 +540,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		issue, err := s.service.SetParent(ctx, issueID, parentIssueID)
+		issue, err := service.SetParent(ctx, issueID, parentIssueID)
 		return toolResult("Updated parent.", issue, err)
 	case "issue_add_blocker":
 		var fields map[string]json.RawMessage
@@ -467,7 +565,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		err := s.service.AddBlocker(ctx, issueID, blockerIssueID)
+		err := service.AddBlocker(ctx, issueID, blockerIssueID)
 		return toolResult("Added blocker.", map[string]string{"status": "ok"}, err)
 	case "issue_remove_blocker":
 		var fields map[string]json.RawMessage
@@ -492,7 +590,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		err := s.service.RemoveBlocker(ctx, issueID, blockerIssueID)
+		err := service.RemoveBlocker(ctx, issueID, blockerIssueID)
 		return toolResult("Removed blocker.", map[string]string{"status": "ok"}, err)
 	case "issue_assign":
 		var fields map[string]json.RawMessage
@@ -514,7 +612,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		issue, err := s.service.AssignIssue(ctx, issueID, assignee)
+		issue, err := service.AssignIssue(ctx, issueID, assignee)
 		return toolResult("Updated assignee.", issue, err)
 	case "issue_set_status":
 		var fields map[string]json.RawMessage
@@ -539,7 +637,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		issue, err := s.service.SetStatus(ctx, issueID, domain.Status(status))
+		issue, err := service.SetStatus(ctx, issueID, domain.Status(status))
 		return toolResult("Updated status.", issue, err)
 	case "issue_set_priority":
 		var fields map[string]json.RawMessage
@@ -564,7 +662,7 @@ func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage)
 		if appErr != nil {
 			return toolResult("", nil, appErr)
 		}
-		issue, err := s.service.SetPriority(ctx, issueID, domain.Priority(priority))
+		issue, err := service.SetPriority(ctx, issueID, domain.Priority(priority))
 		return toolResult("Updated priority.", issue, err)
 	default:
 		return nil, &rpcError{Code: -32602, Message: "Unknown tool"}
@@ -583,9 +681,13 @@ func normalizeToolArguments(raw json.RawMessage) (json.RawMessage, *rpcError) {
 }
 
 func (s *Server) readResource(ctx context.Context, uri string) (any, *rpcError) {
+	service, appErr := s.activeService()
+	if appErr != nil {
+		return nil, appToRPC(appErr)
+	}
 	switch {
 	case uri == "tala://board":
-		issues, err := s.service.SearchIssues(ctx, domain.IssueFilters{})
+		issues, err := service.SearchIssues(ctx, domain.IssueFilters{})
 		if err != nil {
 			return nil, appToRPC(err)
 		}
@@ -595,11 +697,11 @@ func (s *Server) readResource(ctx context.Context, uri string) (any, *rpcError) 
 		}
 		return resourceResult(uri, grouped), nil
 	case uri == "tala://planning":
-		issues, err := s.service.SearchIssues(ctx, domain.IssueFilters{})
+		issues, err := service.SearchIssues(ctx, domain.IssueFilters{})
 		if err != nil {
 			return nil, appToRPC(err)
 		}
-		details, err := s.issueDetails(ctx, issues)
+		details, err := issueDetails(ctx, service, issues)
 		if err != nil {
 			return nil, appToRPC(err)
 		}
@@ -626,7 +728,7 @@ func (s *Server) readResource(ctx context.Context, uri string) (any, *rpcError) 
 					resourceKind = strings.TrimPrefix(suffix, "/")
 				}
 			}
-			issue, err := s.service.GetIssue(ctx, id)
+			issue, err := service.GetIssue(ctx, id)
 			if err != nil {
 				return nil, resourceReadError(uri, err)
 			}
@@ -639,7 +741,7 @@ func (s *Server) readResource(ctx context.Context, uri string) (any, *rpcError) 
 					"children": compactIssues(issue.Children),
 				}
 				if issue.ParentIssueID != nil {
-					parent, err := s.service.GetIssue(ctx, *issue.ParentIssueID)
+					parent, err := service.GetIssue(ctx, *issue.ParentIssueID)
 					if err != nil {
 						return nil, resourceReadError(uri, err)
 					}
@@ -667,10 +769,10 @@ func (s *Server) readResource(ctx context.Context, uri string) (any, *rpcError) 
 	}
 }
 
-func (s *Server) issueDetails(ctx context.Context, issues []domain.Issue) ([]domain.Issue, error) {
+func issueDetails(ctx context.Context, service *app.Service, issues []domain.Issue) ([]domain.Issue, error) {
 	details := make([]domain.Issue, 0, len(issues))
 	for _, issue := range issues {
-		detail, err := s.service.GetIssue(ctx, issue.ID)
+		detail, err := service.GetIssue(ctx, issue.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -937,6 +1039,7 @@ func capabilities() map[string]any {
 
 func tools() []map[string]any {
 	return []map[string]any{
+		tool("tala_init", "Initialize the configured Tala database after explicit user permission. This creates and migrates the workspace .tala/tala.db when it is missing.", schema(props(), nil)),
 		tool("image_upload", "Upload a local image file for embedding in Markdown descriptions or comments.", schema(
 			props(
 				strProp("username", "Required username for the mutation."),
@@ -1330,11 +1433,11 @@ func enforceMCPStoryPointBreakdownForCreate(storyPoints *int) *domain.AppError {
 	return nil
 }
 
-func (s *Server) enforceMCPStoryPointBreakdownForUpdate(ctx context.Context, issueID string, storyPoints **int) *domain.AppError {
+func enforceMCPStoryPointBreakdownForUpdate(ctx context.Context, service *app.Service, issueID string, storyPoints **int) *domain.AppError {
 	if storyPoints == nil || *storyPoints == nil || **storyPoints < 8 {
 		return nil
 	}
-	issue, err := s.service.GetIssue(ctx, issueID)
+	issue, err := service.GetIssue(ctx, issueID)
 	if err != nil {
 		var appErr *domain.AppError
 		if errors.As(err, &appErr) {

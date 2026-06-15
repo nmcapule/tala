@@ -7,22 +7,19 @@ import (
 	"os"
 	"strings"
 
-	"tala/internal/app"
 	"tala/internal/mcp"
-	"tala/internal/store"
 )
 
 func main() {
 	dbPath := flag.String("db", env("TALA_DB", ".tala/tala.db"), "SQLite database path")
 	flag.Parse()
 
-	st, err := store.Open(*dbPath)
+	server, err := mcp.NewLazy(*dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer st.Close()
+	defer server.Close()
 
-	server := mcp.New(app.NewServiceWithUploadDir(st, app.UploadDirForDBPath(*dbPath)))
 	if err := server.ServeStdio(context.Background(), os.Stdin, os.Stdout); err != nil {
 		log.Fatal(err)
 	}

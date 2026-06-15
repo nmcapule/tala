@@ -36,8 +36,8 @@ func TestMCPStdioTransportHandlesFramedRequests(t *testing.T) {
 
 	assertResponseID(t, responses[1], float64(2))
 	tools := responses[1]["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 12 {
-		t.Fatalf("expected 12 tools, got %d", len(tools))
+	if len(tools) != 13 {
+		t.Fatalf("expected 13 tools, got %d", len(tools))
 	}
 
 	assertResponseID(t, responses[2], float64(3))

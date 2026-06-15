@@ -290,6 +290,19 @@ $tala-project-tracker plan this work in Tala and keep the issue updated
 
 The plugin starts the Tala MCP server over stdio against the current workspace's `.tala/tala.db`. Each Codex project gets its own database by default. Set `TALA_DB` to use an explicit database, `TALA_WORKSPACE_ROOT` to choose the project root used for the default database path, or `TALA_SOURCE_ROOT` if the plugin cannot infer the Tala source checkout used to run the MCP server.
 
+The plugin also includes a foreground web-server launcher for browser workflows:
+
+```sh
+plugins/tala-project-tracker/scripts/tala-web-server.sh
+```
+
+By default it listens on `127.0.0.1:8081` and uses the current workspace's `.tala/tala.db`. Override with environment variables or flags:
+
+```sh
+TALA_ADDR=127.0.0.1:8090 TALA_DB=/tmp/tala.db plugins/tala-project-tracker/scripts/tala-web-server.sh
+plugins/tala-project-tracker/scripts/tala-web-server.sh -addr 127.0.0.1:8090 -db /tmp/tala.db
+```
+
 ### Codex Plugin Release
 
 Release the repo-local plugin from the checkout with the helper script:
