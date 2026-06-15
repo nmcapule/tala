@@ -1,0 +1,1548 @@
+package mcp
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"sync"
+
+	"tala/internal/app"
+	"tala/internal/domain"
+	"tala/internal/store"
+)
+
+type Server struct {
+	mu        sync.Mutex
+	service   *app.Service
+	store     *store.Store
+	dbPath    string
+	uploadDir string
+}
+
+func New(service *app.Service) *Server {
+	return &Server{service: service}
+}
+
+func NewLazy(dbPath string) (*Server, error) {
+	server := &Server{
+		dbPath:    strings.TrimSpace(dbPath),
+		uploadDir: app.UploadDirForDBPath(dbPath),
+	}
+	if shouldOpenDBAtStartup(server.dbPath) {
+		if _, err := server.initializeStore(); err != nil {
+			return nil, err
+		}
+	}
+	return server, nil
+}
+
+func shouldOpenDBAtStartup(path string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" || path == ":memory:" || strings.HasPrefix(path, "file:") {
+		return true
+	}
+	_, err := os.Stat(path)
+	return err == nil || !os.IsNotExist(err)
+}
+
+func (s *Server) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.store == nil {
+		return nil
+	}
+	err := s.store.Close()
+	s.store = nil
+	s.service = nil
+	return err
+}
+
+func (s *Server) initializeStore() (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.service != nil {
+		return false, nil
+	}
+	created := !databaseExists(s.dbPath)
+	st, err := store.Open(s.dbPath)
+	if err != nil {
+		return false, err
+	}
+	s.store = st
+	s.service = app.NewServiceWithUploadDir(st, s.uploadDir)
+	return created, nil
+}
+
+func databaseExists(path string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" || path == ":memory:" || strings.HasPrefix(path, "file:") {
+		return true
+	}
+	_, err := os.Stat(path)
+	return err == nil || !os.IsNotExist(err)
+}
+
+func (s *Server) activeService() (*app.Service, *domain.AppError) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.service == nil {
+		return nil, uninitializedError()
+	}
+	return s.service, nil
+}
+
+func uninitializedError() *domain.AppError {
+	return domain.NewError(domain.CodeConflict, "Tala is not initialized. Ask the user for permission, then call tala_init to create the configured .tala/tala.db.", "database")
+}
+
+type request struct {
+	JSONRPC   string          `json:"jsonrpc"`
+	ID        any             `json:"id,omitempty"`
+	HasID     bool            `json:"-"`
+	Method    string          `json:"method"`
+	Params    json.RawMessage `json:"params,omitempty"`
+	HasResult bool            `json:"-"`
+	HasError  bool            `json:"-"`
+}
+
+func (r *request) UnmarshalJSON(data []byte) error {
+	type alias request
+	var raw struct {
+		*alias
+		ID     json.RawMessage `json:"id"`
+		Result json.RawMessage `json:"result"`
+		Error  json.RawMessage `json:"error"`
+	}
+	raw.alias = (*alias)(r)
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	r.HasResult = raw.Result != nil
+	r.HasError = raw.Error != nil
+	if raw.ID != nil {
+		r.HasID = true
+		if string(raw.ID) == "null" {
+			r.ID = nil
+		} else {
+			id, err := decodeJSONValue(raw.ID)
+			if err != nil {
+				return err
+			}
+			r.ID = id
+		}
+	}
+	return nil
+}
+
+func decodeJSONValue(raw json.RawMessage) (any, error) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+type response struct {
+	JSONRPC string    `json:"jsonrpc"`
+	ID      any       `json:"id"`
+	Result  any       `json:"result,omitempty"`
+	Error   *rpcError `json:"error,omitempty"`
+}
+
+type rpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
+}
+
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !allowedOrigin(r.Header.Get("Origin")) {
+		writeTransportError(w, http.StatusForbidden, -32000, "Forbidden origin")
+		return
+	}
+	w.Header().Set("MCP-Protocol-Version", "2025-06-18")
+	if !validProtocolVersion(r.Header.Get("MCP-Protocol-Version")) {
+		writeTransportError(w, http.StatusBadRequest, -32000, "Unsupported MCP protocol version")
+		return
+	}
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeTransportError(w, http.StatusMethodNotAllowed, -32000, "MCP endpoint only supports POST")
+		return
+	}
+	if !validPostAccept(r.Header.Values("Accept")) {
+		writeTransportError(w, http.StatusNotAcceptable, -32000, "MCP POST requires Accept: application/json, text/event-stream")
+		return
+	}
+	defer r.Body.Close()
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeJSON(w, response{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "Parse error"}})
+		return
+	}
+	res, ok := s.processMessage(r.Context(), body)
+	if !ok {
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+	writeJSON(w, res)
+}
+
+func (s *Server) processMessage(ctx context.Context, body []byte) (response, bool) {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	var raw json.RawMessage
+	if err := decoder.Decode(&raw); err != nil {
+		return response{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "Parse error"}}, true
+	}
+	var extra struct{}
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return response{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "Parse error"}}, true
+	}
+	if !isJSONObject(raw) {
+		return response{JSONRPC: "2.0", Error: &rpcError{Code: -32600, Message: "Invalid Request"}}, true
+	}
+	var req request
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return response{JSONRPC: "2.0", Error: &rpcError{Code: -32600, Message: "Invalid Request"}}, true
+	}
+	if isJSONRPCResponse(req) {
+		return response{}, false
+	}
+	if rpcErr := validateRequest(req); rpcErr != nil {
+		return response{JSONRPC: "2.0", Error: rpcErr}, true
+	}
+	if !req.HasID {
+		if isJSONRPCNotification(req) {
+			_, _ = s.handle(ctx, req)
+		}
+		return response{}, false
+	}
+	result, rpcErr := s.handle(ctx, req)
+	return response{JSONRPC: "2.0", ID: req.ID, Result: result, Error: rpcErr}, true
+}
+
+func isJSONRPCResponse(req request) bool {
+	return req.JSONRPC == "2.0" &&
+		req.HasID &&
+		validRequestID(req.ID) &&
+		strings.TrimSpace(req.Method) == "" &&
+		((req.HasResult && !req.HasError) || (req.HasError && !req.HasResult))
+}
+
+func isJSONRPCNotification(req request) bool {
+	return strings.HasPrefix(strings.TrimSpace(req.Method), "notifications/")
+}
+
+func isJSONObject(raw json.RawMessage) bool {
+	return strings.HasPrefix(strings.TrimSpace(string(raw)), "{")
+}
+
+func (s *Server) handle(ctx context.Context, req request) (any, *rpcError) {
+	switch req.Method {
+	case "initialize":
+		return capabilities(), nil
+	case "notifications/initialized":
+		return nil, nil
+	case "tools/list":
+		return map[string]any{"tools": tools()}, nil
+	case "resources/list":
+		return map[string]any{"resources": resources()}, nil
+	case "resources/templates/list":
+		return map[string]any{"resourceTemplates": resourceTemplates()}, nil
+	case "tools/call":
+		fields, rpcErr := objectParams(req.Params)
+		if rpcErr != nil {
+			return nil, rpcErr
+		}
+		name, rpcErr := requiredStringParam(fields, "name")
+		if rpcErr != nil {
+			return nil, rpcErr
+		}
+		return s.callTool(ctx, name, fields["arguments"])
+	case "resources/read":
+		fields, rpcErr := objectParams(req.Params)
+		if rpcErr != nil {
+			return nil, rpcErr
+		}
+		uri, rpcErr := requiredStringParam(fields, "uri")
+		if rpcErr != nil {
+			return nil, rpcErr
+		}
+		return s.readResource(ctx, uri)
+	default:
+		return nil, &rpcError{Code: -32601, Message: "Method not found"}
+	}
+}
+
+func validateRequest(req request) *rpcError {
+	if req.JSONRPC != "2.0" || strings.TrimSpace(req.Method) == "" || req.HasResult || req.HasError || (req.HasID && !validRequestID(req.ID)) {
+		return &rpcError{Code: -32600, Message: "Invalid Request"}
+	}
+	return nil
+}
+
+func validRequestID(id any) bool {
+	switch value := id.(type) {
+	case nil, string:
+		return true
+	case json.Number:
+		return validIntegerJSONNumber(value.String())
+	default:
+		return false
+	}
+}
+
+func validIntegerJSONNumber(value string) bool {
+	if value == "" {
+		return false
+	}
+	if value[0] == '-' {
+		value = value[1:]
+		if value == "" {
+			return false
+		}
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Server) callTool(ctx context.Context, name string, raw json.RawMessage) (any, *rpcError) {
+	var rpcErr *rpcError
+	raw, rpcErr = normalizeToolArguments(raw)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	if name == "tala_init" {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		if _, ok := fields["db_path"]; ok {
+			return toolResult("", nil, domain.NewError(domain.CodeValidationError, "tala_init uses the configured database path and does not accept db_path.", "db_path"))
+		}
+		created, err := s.initializeStore()
+		return toolResult("Initialized Tala.", map[string]any{
+			"db_path":     s.dbPath,
+			"created":     created,
+			"initialized": err == nil,
+		}, err)
+	}
+	service, appErr := s.activeService()
+	if appErr != nil {
+		return toolResult("", nil, appErr)
+	}
+	switch name {
+	case "image_upload":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		username, appErr := usernameArgument(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		path, appErr := requiredStringArgument(fields, "path", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		altText, appErr := optionalStringArgument(fields, "alt_text", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		uploaded, err := service.UploadImageFile(ctx, username, path, altText)
+		return toolResult("Uploaded image.", uploaded, err)
+	case "issue_create":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		username, appErr := usernameArgument(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := rejectNullArguments(fields, "title", "description_markdown", "priority"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		title, appErr := optionalStringArgument(fields, "title", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		descriptionMarkdown, appErr := optionalStringArgument(fields, "description_markdown", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		priority, appErr := optionalStringArgument(fields, "priority", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		storyPoints, appErr := nullableIntArgument(raw, "story_points", "Argument must be an integer or null.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := enforceMCPStoryPointBreakdownForCreate(storyPoints); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		assignee, appErr := nullableStringArgument(raw, "assignee", "Argument must be a string or null.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		parentIssueID, appErr := nullableStringArgument(raw, "parent_issue_id", "Argument must be a string or null.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		tagNames, _, appErr := optionalStringSliceArgument(fields, "tag_names")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issue, err := service.CreateIssue(ctx, username, app.CreateIssueRequest{
+			Title: title, DescriptionMarkdown: descriptionMarkdown, Priority: priority,
+			StoryPoints: storyPoints, Assignee: assignee, TagNames: tagNames, ParentIssueID: parentIssueID,
+		})
+		return toolResult("Created issue "+issue.ID+".", issue, err)
+	case "issue_update":
+		var assignee **string
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		_, appErr := usernameArgument(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := rejectNullArguments(fields, "title", "description_markdown", "status", "priority"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issueID, appErr := requiredStringArgument(fields, "issue_id", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		title, appErr := optionalStringPointerArgument(fields, "title", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		descriptionMarkdown, appErr := optionalStringPointerArgument(fields, "description_markdown", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		status, appErr := optionalStringPointerArgument(fields, "status", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		priority, appErr := optionalStringPointerArgument(fields, "priority", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		storyPoints, appErr := optionalNullableIntPointerArgument(raw, "story_points", "Argument must be an integer or null.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := enforceMCPStoryPointBreakdownForUpdate(ctx, service, issueID, storyPoints); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if _, ok := fields["assignee"]; ok {
+			value, appErr := nullableStringArgument(raw, "assignee", "Argument must be a string or null.")
+			if appErr != nil {
+				return toolResult("", nil, appErr)
+			}
+			assignee = &value
+		}
+		tagNames, tagNamesSet, appErr := optionalStringSliceArgument(fields, "tag_names")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issue, err := service.UpdateIssue(ctx, issueID, app.UpdateIssueRequest{
+			Title:               title,
+			DescriptionMarkdown: descriptionMarkdown,
+			Status:              status,
+			Priority:            priority,
+			StoryPoints:         storyPoints,
+			Assignee:            assignee,
+			TagNames:            tagNames,
+			TagNamesSet:         tagNamesSet,
+		})
+		return toolResult("Updated issue "+issueID+".", issue, err)
+	case "issue_search":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		filters, appErr := issueFilterArguments(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issues, err := service.SearchIssues(ctx, filters)
+		return toolResult("Found issues.", issues, err)
+	case "issue_get":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		issueID, appErr := requiredStringArgument(fields, "issue_id", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issue, err := service.GetIssue(ctx, issueID)
+		return toolResult("Fetched issue "+issueID+".", issue, err)
+	case "issue_comment":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		username, appErr := usernameArgument(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := requireArgument(raw, "body_markdown"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := rejectNullArguments(fields, "body_markdown"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issueID, appErr := requiredStringArgument(fields, "issue_id", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		bodyMarkdown, appErr := stringArgument(fields, "body_markdown", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		comment, err := service.AddComment(ctx, issueID, username, app.CommentRequest{BodyMarkdown: bodyMarkdown})
+		return toolResult("Added comment.", comment, err)
+	case "issue_set_parent":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		_, appErr := usernameArgument(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := requireArgument(raw, "parent_issue_id"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issueID, appErr := requiredStringArgument(fields, "issue_id", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		parentIssueID, appErr := nullableStringArgument(raw, "parent_issue_id", "Argument must be a string or null.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issue, err := service.SetParent(ctx, issueID, parentIssueID)
+		return toolResult("Updated parent.", issue, err)
+	case "issue_add_blocker":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		_, appErr := usernameArgument(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := requireArgument(raw, "blocker_issue_id"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := rejectNullArguments(fields, "blocker_issue_id"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issueID, appErr := requiredStringArgument(fields, "issue_id", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		blockerIssueID, appErr := stringArgument(fields, "blocker_issue_id", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		err := service.AddBlocker(ctx, issueID, blockerIssueID)
+		return toolResult("Added blocker.", map[string]string{"status": "ok"}, err)
+	case "issue_remove_blocker":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		_, appErr := usernameArgument(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := requireArgument(raw, "blocker_issue_id"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := rejectNullArguments(fields, "blocker_issue_id"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issueID, appErr := requiredStringArgument(fields, "issue_id", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		blockerIssueID, appErr := stringArgument(fields, "blocker_issue_id", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		err := service.RemoveBlocker(ctx, issueID, blockerIssueID)
+		return toolResult("Removed blocker.", map[string]string{"status": "ok"}, err)
+	case "issue_assign":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		_, appErr := usernameArgument(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := requireArgument(raw, "assignee"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issueID, appErr := requiredStringArgument(fields, "issue_id", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		assignee, appErr := nullableStringArgument(raw, "assignee", "Argument must be a string or null.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issue, err := service.AssignIssue(ctx, issueID, assignee)
+		return toolResult("Updated assignee.", issue, err)
+	case "issue_set_status":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		_, appErr := usernameArgument(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := requireArgument(raw, "status"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := rejectNullArguments(fields, "status"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issueID, appErr := requiredStringArgument(fields, "issue_id", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		status, appErr := stringArgument(fields, "status", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issue, err := service.SetStatus(ctx, issueID, domain.Status(status))
+		return toolResult("Updated status.", issue, err)
+	case "issue_set_priority":
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, invalidParams(err)
+		}
+		_, appErr := usernameArgument(fields)
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := requireArgument(raw, "priority"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		if appErr := rejectNullArguments(fields, "priority"); appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issueID, appErr := requiredStringArgument(fields, "issue_id", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		priority, appErr := stringArgument(fields, "priority", "Argument must be a string.")
+		if appErr != nil {
+			return toolResult("", nil, appErr)
+		}
+		issue, err := service.SetPriority(ctx, issueID, domain.Priority(priority))
+		return toolResult("Updated priority.", issue, err)
+	default:
+		return nil, &rpcError{Code: -32602, Message: "Unknown tool"}
+	}
+}
+
+func normalizeToolArguments(raw json.RawMessage) (json.RawMessage, *rpcError) {
+	clean := strings.TrimSpace(string(raw))
+	if clean == "" {
+		return json.RawMessage(`{}`), nil
+	}
+	if clean == "null" || !strings.HasPrefix(clean, "{") {
+		return nil, &rpcError{Code: -32602, Message: "Invalid params", Data: "tool arguments must be an object"}
+	}
+	return raw, nil
+}
+
+func (s *Server) readResource(ctx context.Context, uri string) (any, *rpcError) {
+	service, appErr := s.activeService()
+	if appErr != nil {
+		return nil, appToRPC(appErr)
+	}
+	switch {
+	case uri == "tala://board":
+		issues, err := service.SearchIssues(ctx, domain.IssueFilters{})
+		if err != nil {
+			return nil, appToRPC(err)
+		}
+		grouped := emptyBoard()
+		for _, issue := range issues {
+			grouped[string(issue.Status)] = append(grouped[string(issue.Status)], compactIssue(issue))
+		}
+		return resourceResult(uri, grouped), nil
+	case uri == "tala://planning":
+		issues, err := service.SearchIssues(ctx, domain.IssueFilters{})
+		if err != nil {
+			return nil, appToRPC(err)
+		}
+		details, err := issueDetails(ctx, service, issues)
+		if err != nil {
+			return nil, appToRPC(err)
+		}
+		planning := map[string]any{
+			"issues": compactIssues(issues),
+			"roots": compactIssues(filterIssues(issues, func(issue domain.Issue) bool {
+				return issue.ParentIssueID == nil
+			})),
+			"children_by_parent": childrenByParent(issues),
+			"hierarchy":          hierarchyContexts(issues),
+			"dependencies":       dependencyContexts(details),
+			"blocked":            blockedContexts(details),
+			"blocking":           blockingContexts(details),
+		}
+		return resourceResult(uri, planning), nil
+	default:
+		const issuePrefix = "tala://issues/"
+		if len(uri) > len(issuePrefix) && uri[:len(issuePrefix)] == issuePrefix {
+			id := uri[len(issuePrefix):]
+			resourceKind := "detail"
+			for _, suffix := range []string{"/tree", "/blockers"} {
+				if len(id) > len(suffix) && id[len(id)-len(suffix):] == suffix {
+					id = id[:len(id)-len(suffix)]
+					resourceKind = strings.TrimPrefix(suffix, "/")
+				}
+			}
+			issue, err := service.GetIssue(ctx, id)
+			if err != nil {
+				return nil, resourceReadError(uri, err)
+			}
+			switch resourceKind {
+			case "tree":
+				tree := map[string]any{
+					"issue":    compactIssue(issue),
+					"parent":   nil,
+					"siblings": []compactResourceIssue{},
+					"children": compactIssues(issue.Children),
+				}
+				if issue.ParentIssueID != nil {
+					parent, err := service.GetIssue(ctx, *issue.ParentIssueID)
+					if err != nil {
+						return nil, resourceReadError(uri, err)
+					}
+					tree["parent"] = compactIssue(parent)
+					tree["siblings"] = compactIssues(filterIssues(parent.Children, func(candidate domain.Issue) bool {
+						return candidate.ID != issue.ID
+					}))
+				}
+				return resourceResult(uri, tree), nil
+			case "blockers":
+				blockers := map[string]any{
+					"issue":                 compactIssue(issue),
+					"blockers":              compactIssues(issue.Blockers),
+					"unresolved_blockers":   unresolvedIssues(issue.Blockers),
+					"resolved_blockers":     resolvedIssues(issue.Blockers),
+					"blocked_by":            compactIssues(issue.BlockedBy),
+					"unresolved_blocked_by": unresolvedBlockedBy(issue),
+					"resolved_blocked_by":   resolvedBlockedBy(issue),
+				}
+				return resourceResult(uri, blockers), nil
+			}
+			return resourceResult(uri, issue), nil
+		}
+		return nil, resourceNotFound(uri, nil)
+	}
+}
+
+func issueDetails(ctx context.Context, service *app.Service, issues []domain.Issue) ([]domain.Issue, error) {
+	details := make([]domain.Issue, 0, len(issues))
+	for _, issue := range issues {
+		detail, err := service.GetIssue(ctx, issue.ID)
+		if err != nil {
+			return nil, err
+		}
+		details = append(details, detail)
+	}
+	return details, nil
+}
+
+func toolResult(summary string, structured any, err error) (any, *rpcError) {
+	if err != nil {
+		var appErr *domain.AppError
+		if errors.As(err, &appErr) {
+			return toolErrorResult(appErr), nil
+		}
+		return nil, appToRPC(err)
+	}
+	return map[string]any{
+		"content": []map[string]string{
+			{"type": "text", "text": summary},
+			{"type": "text", "text": mustJSON(structured)},
+		},
+		"structuredContent": structured,
+		"isError":           false,
+	}, nil
+}
+
+func toolErrorResult(appErr *domain.AppError) map[string]any {
+	return map[string]any{
+		"content": []map[string]string{
+			{"type": "text", "text": appErr.Message},
+			{"type": "text", "text": mustJSON(appErr)},
+		},
+		"structuredContent": appErr,
+		"isError":           true,
+	}
+}
+
+type dependencyContext struct {
+	Issue               compactResourceIssue   `json:"issue"`
+	Blockers            []compactResourceIssue `json:"blockers"`
+	UnresolvedBlockers  []compactResourceIssue `json:"unresolved_blockers"`
+	ResolvedBlockers    []compactResourceIssue `json:"resolved_blockers"`
+	BlockedBy           []compactResourceIssue `json:"blocked_by"`
+	UnresolvedBlockedBy []compactResourceIssue `json:"unresolved_blocked_by"`
+	ResolvedBlockedBy   []compactResourceIssue `json:"resolved_blocked_by"`
+}
+
+type hierarchyContext struct {
+	Issue    compactResourceIssue   `json:"issue"`
+	Parent   *compactResourceIssue  `json:"parent"`
+	Children []compactResourceIssue `json:"children"`
+}
+
+type compactResourceIssue struct {
+	ID            string          `json:"id"`
+	Title         string          `json:"title"`
+	Status        domain.Status   `json:"status"`
+	Priority      domain.Priority `json:"priority"`
+	StoryPoints   *int            `json:"story_points"`
+	StoryTotal    int             `json:"story_points_total"`
+	Assignee      *string         `json:"assignee"`
+	ParentIssueID *string         `json:"parent_issue_id"`
+	Tags          []compactTag    `json:"tags"`
+	ChildCount    int             `json:"child_count"`
+	CommentCount  int             `json:"comment_count"`
+	Blocked       bool            `json:"blocked"`
+}
+
+type compactTag struct {
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Color *string `json:"color"`
+}
+
+func compactIssues(issues []domain.Issue) []compactResourceIssue {
+	out := make([]compactResourceIssue, 0, len(issues))
+	for _, issue := range issues {
+		out = append(out, compactIssue(issue))
+	}
+	return out
+}
+
+func compactIssue(issue domain.Issue) compactResourceIssue {
+	return compactResourceIssue{
+		ID:            issue.ID,
+		Title:         issue.Title,
+		Status:        issue.Status,
+		Priority:      issue.Priority,
+		StoryPoints:   issue.StoryPoints,
+		StoryTotal:    issue.StoryPointsTotal,
+		Assignee:      issue.Assignee,
+		ParentIssueID: issue.ParentIssueID,
+		Tags:          compactTags(issue.Tags),
+		ChildCount:    issue.ChildCount,
+		CommentCount:  issue.CommentCount,
+		Blocked:       issue.Blocked,
+	}
+}
+
+func compactTags(tags []domain.Tag) []compactTag {
+	out := make([]compactTag, 0, len(tags))
+	for _, tag := range tags {
+		out = append(out, compactTag{ID: tag.ID, Name: tag.Name, Color: tag.Color})
+	}
+	return out
+}
+
+func childrenByParent(issues []domain.Issue) map[string][]compactResourceIssue {
+	children := map[string][]compactResourceIssue{}
+	for _, issue := range issues {
+		if issue.ParentIssueID == nil {
+			continue
+		}
+		parentID := *issue.ParentIssueID
+		children[parentID] = append(children[parentID], compactIssue(issue))
+	}
+	return children
+}
+
+func hierarchyContexts(issues []domain.Issue) []hierarchyContext {
+	byID := make(map[string]domain.Issue, len(issues))
+	children := childrenByParent(issues)
+	for _, issue := range issues {
+		byID[issue.ID] = issue
+	}
+	contexts := make([]hierarchyContext, 0, len(issues))
+	for _, issue := range issues {
+		context := hierarchyContext{
+			Issue:    compactIssue(issue),
+			Children: children[issue.ID],
+		}
+		if issue.ParentIssueID != nil {
+			if parent, ok := byID[*issue.ParentIssueID]; ok {
+				compactParent := compactIssue(parent)
+				context.Parent = &compactParent
+			}
+		}
+		if context.Children == nil {
+			context.Children = []compactResourceIssue{}
+		}
+		contexts = append(contexts, context)
+	}
+	return contexts
+}
+
+func dependencyContexts(issues []domain.Issue) []dependencyContext {
+	contexts := []dependencyContext{}
+	for _, issue := range issues {
+		if len(issue.Blockers) == 0 && len(issue.BlockedBy) == 0 {
+			continue
+		}
+		contexts = append(contexts, dependencyContext{
+			Issue:               compactIssue(issue),
+			Blockers:            compactIssues(issue.Blockers),
+			UnresolvedBlockers:  unresolvedIssues(issue.Blockers),
+			ResolvedBlockers:    resolvedIssues(issue.Blockers),
+			BlockedBy:           compactIssues(issue.BlockedBy),
+			UnresolvedBlockedBy: unresolvedBlockedBy(issue),
+			ResolvedBlockedBy:   resolvedBlockedBy(issue),
+		})
+	}
+	return contexts
+}
+
+func blockedContexts(issues []domain.Issue) []dependencyContext {
+	contexts := []dependencyContext{}
+	for _, issue := range issues {
+		if !issue.Blocked {
+			continue
+		}
+		contexts = append(contexts, dependencyContext{
+			Issue:               compactIssue(issue),
+			Blockers:            compactIssues(issue.Blockers),
+			UnresolvedBlockers:  unresolvedIssues(issue.Blockers),
+			ResolvedBlockers:    resolvedIssues(issue.Blockers),
+			BlockedBy:           []compactResourceIssue{},
+			UnresolvedBlockedBy: []compactResourceIssue{},
+			ResolvedBlockedBy:   []compactResourceIssue{},
+		})
+	}
+	return contexts
+}
+
+func blockingContexts(issues []domain.Issue) []dependencyContext {
+	contexts := []dependencyContext{}
+	for _, issue := range issues {
+		if len(issue.BlockedBy) == 0 {
+			continue
+		}
+		contexts = append(contexts, dependencyContext{
+			Issue:               compactIssue(issue),
+			Blockers:            []compactResourceIssue{},
+			UnresolvedBlockers:  []compactResourceIssue{},
+			ResolvedBlockers:    []compactResourceIssue{},
+			BlockedBy:           compactIssues(issue.BlockedBy),
+			UnresolvedBlockedBy: unresolvedBlockedBy(issue),
+			ResolvedBlockedBy:   resolvedBlockedBy(issue),
+		})
+	}
+	return contexts
+}
+
+func unresolvedIssues(issues []domain.Issue) []compactResourceIssue {
+	return compactIssues(filterIssues(issues, func(issue domain.Issue) bool {
+		return !domain.TerminalStatus(issue.Status)
+	}))
+}
+
+func resolvedIssues(issues []domain.Issue) []compactResourceIssue {
+	return compactIssues(filterIssues(issues, func(issue domain.Issue) bool {
+		return domain.TerminalStatus(issue.Status)
+	}))
+}
+
+func unresolvedBlockedBy(issue domain.Issue) []compactResourceIssue {
+	if domain.TerminalStatus(issue.Status) {
+		return []compactResourceIssue{}
+	}
+	return unresolvedIssues(issue.BlockedBy)
+}
+
+func resolvedBlockedBy(issue domain.Issue) []compactResourceIssue {
+	return compactIssues(filterIssues(issue.BlockedBy, func(blockedBy domain.Issue) bool {
+		return domain.TerminalStatus(issue.Status) || domain.TerminalStatus(blockedBy.Status)
+	}))
+}
+
+func filterIssues(issues []domain.Issue, keep func(domain.Issue) bool) []domain.Issue {
+	filtered := []domain.Issue{}
+	for _, issue := range issues {
+		if keep(issue) {
+			filtered = append(filtered, issue)
+		}
+	}
+	return filtered
+}
+
+func emptyBoard() map[string][]compactResourceIssue {
+	return map[string][]compactResourceIssue{
+		string(domain.StatusNew):        {},
+		string(domain.StatusInProgress): {},
+		string(domain.StatusCompleted):  {},
+		string(domain.StatusCanceled):   {},
+	}
+}
+
+func resourceResult(uri string, data any) map[string]any {
+	return map[string]any{
+		"contents": []map[string]any{{
+			"uri":      uri,
+			"mimeType": "application/json",
+			"text":     mustJSON(data),
+		}},
+	}
+}
+
+func capabilities() map[string]any {
+	return map[string]any{
+		"protocolVersion": "2025-06-18",
+		"serverInfo":      map[string]string{"name": "tala", "version": "0.2.1"},
+		"capabilities":    map[string]any{"tools": map[string]any{}, "resources": map[string]any{}},
+	}
+}
+
+func tools() []map[string]any {
+	return []map[string]any{
+		tool("tala_init", "Initialize the configured Tala database after explicit user permission. This creates and migrates the workspace .tala/tala.db when it is missing.", schema(props(), nil)),
+		tool("image_upload", "Upload a local image file for embedding in Markdown descriptions or comments.", schema(
+			props(
+				strProp("username", "Required username for the mutation."),
+				strProp("path", "Local image file path to upload."),
+				strProp("alt_text", "Optional Markdown alt text."),
+			),
+			[]string{"username", "path"},
+		)),
+		tool("issue_create", "Create an issue with Markdown description, tags, assignee, priority, and optional parent.", schema(
+			props(
+				strProp("username", "Required username for the mutation."),
+				strProp("title", "Required issue title."),
+				strProp("description_markdown", "Markdown source for the issue description."),
+				enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}, "Issue priority."),
+				nullableIntProp("story_points", "Optional direct Fibonacci story point estimate. Agent-created issues must stay below 8SP; break larger work into child issues."),
+				nullableStrProp("assignee", "Optional assignee username."),
+				arrayProp("tag_names", "Tag names to attach, creating missing tags."),
+				nullableStrProp("parent_issue_id", "Optional parent issue ID."),
+			),
+			[]string{"username", "title"},
+		)),
+		tool("issue_update", "Update issue fields.", schema(issueMutationProps(
+			strProp("title", "Issue title."),
+			strProp("description_markdown", "Markdown source for the issue description."),
+			enumProp("status", []string{"new", "in_progress", "completed", "canceled"}, "Issue status."),
+			enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}, "Issue priority."),
+			nullableIntProp("story_points", "Optional direct Fibonacci story point estimate. Values of 8SP or higher require child issues for agent workflows."),
+			nullableStrProp("assignee", "Optional assignee username; null clears it."),
+			arrayProp("tag_names", "Replacement tag names."),
+		), []string{"username", "issue_id"})),
+		tool("issue_search", "Search and filter issues.", schema(props(
+			enumProp("status", []string{"new", "in_progress", "completed", "canceled"}, "Filter by issue status."),
+			enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}, "Filter by issue priority."),
+			strProp("assignee", "Assignee username."),
+			strProp("tag", "Tag name."),
+			strProp("id", "Exact issue ID."),
+			strProp("parent_id", "Parent issue ID."),
+			strProp("blocked_by", "Blocker issue ID."),
+			strProp("blocker_of", "Issue ID blocked by returned issues."),
+			enumProp("state", []string{"open", "blocked", "done"}, "Filter by derived issue state."),
+			strProp("q", "Text query over title, Markdown description, comments, tags, ID, creator, assignee, status, and priority."),
+			enumProp("sort", []string{"priority", "updated_at", "created_at", "title", "status"}, "Sort field."),
+			enumProp("order", []string{"asc", "desc"}, "Sort order."),
+		), nil)),
+		tool("issue_get", "Fetch issue detail.", schema(props(strProp("issue_id", "Issue ID.")), []string{"issue_id"})),
+		tool("issue_comment", "Append a Markdown comment.", schema(issueMutationProps(strProp("body_markdown", "Required Markdown comment body.")), []string{"username", "issue_id", "body_markdown"})),
+		tool("issue_set_parent", "Set or clear an issue parent.", schema(issueMutationProps(nullableStrProp("parent_issue_id", "Parent issue ID, or null to clear.")), []string{"username", "issue_id", "parent_issue_id"})),
+		tool("issue_add_blocker", "Add a blocker issue.", schema(issueMutationProps(strProp("blocker_issue_id", "Issue ID that blocks this issue.")), []string{"username", "issue_id", "blocker_issue_id"})),
+		tool("issue_remove_blocker", "Remove a blocker issue.", schema(issueMutationProps(strProp("blocker_issue_id", "Blocker issue ID to remove.")), []string{"username", "issue_id", "blocker_issue_id"})),
+		tool("issue_assign", "Set or clear assignee.", schema(issueMutationProps(nullableStrProp("assignee", "Assignee username, or null to clear.")), []string{"username", "issue_id", "assignee"})),
+		tool("issue_set_status", "Change issue status.", schema(issueMutationProps(enumProp("status", []string{"new", "in_progress", "completed", "canceled"}, "Issue status.")), []string{"username", "issue_id", "status"})),
+		tool("issue_set_priority", "Change issue priority.", schema(issueMutationProps(enumProp("priority", []string{"P0", "P1", "P2", "P3", "P4"}, "Issue priority.")), []string{"username", "issue_id", "priority"})),
+	}
+}
+
+func tool(name, description string, inputSchema map[string]any) map[string]any {
+	return map[string]any{"name": name, "description": description, "inputSchema": inputSchema}
+}
+
+func schema(properties map[string]any, required []string) map[string]any {
+	out := map[string]any{"type": "object", "properties": properties}
+	if len(required) > 0 {
+		out["required"] = required
+	}
+	return out
+}
+
+func issueMutationProps(extra ...map[string]any) map[string]any {
+	return props(append([]map[string]any{
+		strProp("username", "Required username for the mutation."),
+		strProp("issue_id", "Issue ID."),
+	}, extra...)...)
+}
+
+func props(fields ...map[string]any) map[string]any {
+	out := map[string]any{}
+	for _, field := range fields {
+		for name, schema := range field {
+			out[name] = schema
+		}
+	}
+	return out
+}
+
+func strProp(name, description string) map[string]any {
+	return map[string]any{name: map[string]any{"type": "string", "description": description}}
+}
+
+func nullableStrProp(name, description string) map[string]any {
+	return map[string]any{name: map[string]any{
+		"anyOf":       []map[string]string{{"type": "string"}, {"type": "null"}},
+		"description": description,
+	}}
+}
+
+func nullableIntProp(name, description string) map[string]any {
+	return map[string]any{name: map[string]any{
+		"anyOf":       []map[string]string{{"type": "integer"}, {"type": "null"}},
+		"enum":        []any{1, 2, 3, 5, 8, 13, 21, nil},
+		"description": description,
+	}}
+}
+
+func arrayProp(name, description string) map[string]any {
+	return map[string]any{name: map[string]any{"type": "array", "items": map[string]string{"type": "string"}, "description": description}}
+}
+
+func enumProp(name string, values []string, description string) map[string]any {
+	return map[string]any{name: map[string]any{"type": "string", "enum": values, "description": description}}
+}
+
+func resources() []map[string]any {
+	return []map[string]any{
+		{
+			"uri":         "tala://board",
+			"name":        "Board",
+			"description": "Compact board state grouped by status.",
+			"mimeType":    "application/json",
+		},
+		{
+			"uri":         "tala://planning",
+			"name":        "Planning",
+			"description": "High-level planning context across hierarchy and blockers.",
+			"mimeType":    "application/json",
+		},
+	}
+}
+
+func resourceTemplates() []map[string]any {
+	return []map[string]any{
+		{
+			"uriTemplate": "tala://issues/{id}",
+			"name":        "Issue detail",
+			"description": "Issue detail context including tags, children, blockers, and recent comments.",
+			"mimeType":    "application/json",
+		},
+		{
+			"uriTemplate": "tala://issues/{id}/tree",
+			"name":        "Issue tree",
+			"description": "Parent, siblings, and children for an issue.",
+			"mimeType":    "application/json",
+		},
+		{
+			"uriTemplate": "tala://issues/{id}/blockers",
+			"name":        "Issue blockers",
+			"description": "Blockers and issues blocked by this issue.",
+			"mimeType":    "application/json",
+		},
+	}
+}
+
+func appToRPC(err error) *rpcError {
+	var appErr *domain.AppError
+	if errors.As(err, &appErr) {
+		return &rpcError{Code: -32000, Message: appErr.Message, Data: appErr}
+	}
+	return &rpcError{Code: -32603, Message: "Internal error"}
+}
+
+func resourceReadError(uri string, err error) *rpcError {
+	if appErr, ok := err.(*domain.AppError); ok && appErr.Code == domain.CodeNotFound {
+		return resourceNotFound(uri, appErr)
+	}
+	return appToRPC(err)
+}
+
+func resourceNotFound(uri string, appErr *domain.AppError) *rpcError {
+	data := map[string]any{"uri": uri}
+	if appErr != nil {
+		data["code"] = appErr.Code
+		data["field"] = appErr.Field
+	}
+	return &rpcError{Code: -32002, Message: "Resource not found", Data: data}
+}
+
+func invalidParams(err error) *rpcError {
+	return &rpcError{Code: -32602, Message: "Invalid params", Data: err.Error()}
+}
+
+func invalidParamsMessage(message string) *rpcError {
+	return &rpcError{Code: -32602, Message: "Invalid params", Data: message}
+}
+
+func objectParams(raw json.RawMessage) (map[string]json.RawMessage, *rpcError) {
+	clean := strings.TrimSpace(string(raw))
+	if clean == "" || clean == "null" || !strings.HasPrefix(clean, "{") {
+		return nil, invalidParamsMessage("params must be an object")
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
+		if err != nil {
+			return nil, invalidParams(err)
+		}
+		return nil, invalidParamsMessage("params must be an object")
+	}
+	return fields, nil
+}
+
+func requiredStringParam(fields map[string]json.RawMessage, name string) (string, *rpcError) {
+	raw, ok := fields[name]
+	if !ok || string(raw) == "null" {
+		return "", invalidParamsMessage(name + " is required")
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return "", invalidParams(err)
+	}
+	if strings.TrimSpace(value) == "" {
+		return "", invalidParamsMessage(name + " is required")
+	}
+	return value, nil
+}
+
+func requireArgument(raw json.RawMessage, name string) *domain.AppError {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return domain.NewError(domain.CodeValidationError, "Invalid arguments.", "arguments")
+	}
+	if _, ok := fields[name]; !ok {
+		return domain.NewError(domain.CodeValidationError, "Required argument is missing.", name)
+	}
+	return nil
+}
+
+func rejectNullArguments(fields map[string]json.RawMessage, names ...string) *domain.AppError {
+	for _, name := range names {
+		if raw, ok := fields[name]; ok && string(raw) == "null" {
+			return domain.NewError(domain.CodeValidationError, "Argument must not be null.", name)
+		}
+	}
+	return nil
+}
+
+func nullableStringArgument(raw json.RawMessage, name, message string) (*string, *domain.AppError) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, domain.NewError(domain.CodeValidationError, "Invalid arguments.", "arguments")
+	}
+	value, ok := fields[name]
+	if !ok || string(value) == "null" {
+		return nil, nil
+	}
+	var parsed string
+	if err := json.Unmarshal(value, &parsed); err != nil {
+		return nil, domain.NewError(domain.CodeValidationError, message, name)
+	}
+	return &parsed, nil
+}
+
+func nullableIntArgument(raw json.RawMessage, name, message string) (*int, *domain.AppError) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, domain.NewError(domain.CodeValidationError, "Invalid arguments.", "arguments")
+	}
+	value, ok := fields[name]
+	if !ok || string(value) == "null" {
+		return nil, nil
+	}
+	var parsed int
+	if err := json.Unmarshal(value, &parsed); err != nil {
+		return nil, domain.NewError(domain.CodeValidationError, message, name)
+	}
+	return &parsed, nil
+}
+
+func optionalNullableIntPointerArgument(raw json.RawMessage, name, message string) (**int, *domain.AppError) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, domain.NewError(domain.CodeValidationError, "Invalid arguments.", "arguments")
+	}
+	if _, ok := fields[name]; !ok {
+		return nil, nil
+	}
+	value, appErr := nullableIntArgument(raw, name, message)
+	if appErr != nil {
+		return nil, appErr
+	}
+	return &value, nil
+}
+
+func stringArgument(fields map[string]json.RawMessage, name, message string) (string, *domain.AppError) {
+	var parsed string
+	if err := json.Unmarshal(fields[name], &parsed); err != nil {
+		return "", domain.NewError(domain.CodeValidationError, message, name)
+	}
+	return parsed, nil
+}
+
+func requiredStringArgument(fields map[string]json.RawMessage, name, message string) (string, *domain.AppError) {
+	raw, ok := fields[name]
+	if !ok {
+		return "", domain.NewError(domain.CodeValidationError, "Required argument is missing.", name)
+	}
+	if string(raw) == "null" {
+		return "", domain.NewError(domain.CodeValidationError, "Argument must not be null.", name)
+	}
+	return stringArgument(fields, name, message)
+}
+
+func optionalStringArgument(fields map[string]json.RawMessage, name, message string) (string, *domain.AppError) {
+	raw, ok := fields[name]
+	if !ok {
+		return "", nil
+	}
+	if string(raw) == "null" {
+		return "", domain.NewError(domain.CodeValidationError, "Argument must not be null.", name)
+	}
+	return stringArgument(fields, name, message)
+}
+
+func optionalStringPointerArgument(fields map[string]json.RawMessage, name, message string) (*string, *domain.AppError) {
+	if _, ok := fields[name]; !ok {
+		return nil, nil
+	}
+	parsed, appErr := optionalStringArgument(fields, name, message)
+	if appErr != nil {
+		return nil, appErr
+	}
+	return &parsed, nil
+}
+
+func issueFilterArguments(fields map[string]json.RawMessage) (domain.IssueFilters, *domain.AppError) {
+	status, appErr := optionalStringArgument(fields, "status", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	priority, appErr := optionalStringArgument(fields, "priority", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	assignee, appErr := optionalStringArgument(fields, "assignee", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	tag, appErr := optionalStringArgument(fields, "tag", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	id, appErr := optionalStringArgument(fields, "id", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	parentID, appErr := optionalStringArgument(fields, "parent_id", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	blockedBy, appErr := optionalStringArgument(fields, "blocked_by", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	blockerOf, appErr := optionalStringArgument(fields, "blocker_of", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	state, appErr := optionalStringArgument(fields, "state", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	query, appErr := optionalStringArgument(fields, "q", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	sort, appErr := optionalStringArgument(fields, "sort", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	order, appErr := optionalStringArgument(fields, "order", "Argument must be a string.")
+	if appErr != nil {
+		return domain.IssueFilters{}, appErr
+	}
+	return domain.IssueFilters{
+		Status:    status,
+		Priority:  priority,
+		Assignee:  assignee,
+		Tag:       tag,
+		ID:        id,
+		ParentID:  parentID,
+		BlockedBy: blockedBy,
+		BlockerOf: blockerOf,
+		State:     state,
+		Query:     query,
+		Sort:      sort,
+		Order:     order,
+	}, nil
+}
+
+func enforceMCPStoryPointBreakdownForCreate(storyPoints *int) *domain.AppError {
+	if storyPoints != nil && *storyPoints >= 8 {
+		return domain.NewError(domain.CodeValidationError, "Issues estimated at 8SP or more must be broken down into smaller child issues before agent creation.", "story_points")
+	}
+	return nil
+}
+
+func enforceMCPStoryPointBreakdownForUpdate(ctx context.Context, service *app.Service, issueID string, storyPoints **int) *domain.AppError {
+	if storyPoints == nil || *storyPoints == nil || **storyPoints < 8 {
+		return nil
+	}
+	issue, err := service.GetIssue(ctx, issueID)
+	if err != nil {
+		var appErr *domain.AppError
+		if errors.As(err, &appErr) {
+			return appErr
+		}
+		return domain.NewError(domain.CodeInternal, "Internal error.", "")
+	}
+	if issue.ChildCount == 0 {
+		return domain.NewError(domain.CodeValidationError, "Issues estimated at 8SP or more must be broken down into smaller child issues before agent updates.", "story_points")
+	}
+	return nil
+}
+
+func usernameArgument(fields map[string]json.RawMessage) (string, *domain.AppError) {
+	raw, ok := fields["username"]
+	if !ok || string(raw) == "null" {
+		return "", domain.NewError(domain.CodeMissingUsername, "Username is required for this operation.", "username")
+	}
+	username, appErr := stringArgument(fields, "username", "Username must be a string.")
+	if appErr != nil {
+		return "", appErr
+	}
+	if strings.TrimSpace(username) == "" {
+		return "", domain.NewError(domain.CodeMissingUsername, "Username is required for this operation.", "username")
+	}
+	return username, nil
+}
+
+func optionalStringSliceArgument(fields map[string]json.RawMessage, name string) ([]string, bool, *domain.AppError) {
+	value, ok := fields[name]
+	if !ok {
+		return nil, false, nil
+	}
+	if string(value) == "null" {
+		return nil, false, domain.NewError(domain.CodeValidationError, "Tag names must be an array.", name)
+	}
+	var parsed []string
+	if err := json.Unmarshal(value, &parsed); err != nil {
+		return nil, false, domain.NewError(domain.CodeValidationError, "Tag names must be an array.", name)
+	}
+	return parsed, true, nil
+}
+
+func requireUsername(username string) error {
+	if strings.TrimSpace(username) == "" {
+		return domain.NewError(domain.CodeMissingUsername, "Username is required for this operation.", "username")
+	}
+	return nil
+}
+
+func allowedOrigin(origin string) bool {
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	host := parsed.Hostname()
+	return host == "127.0.0.1" || host == "localhost" || host == "::1"
+}
+
+func validProtocolVersion(version string) bool {
+	switch strings.TrimSpace(version) {
+	case "", "2025-03-26", "2025-06-18":
+		return true
+	default:
+		return false
+	}
+}
+
+func validPostAccept(values []string) bool {
+	accept := strings.Join(values, ",")
+	if strings.TrimSpace(accept) == "" {
+		return false
+	}
+	hasJSON := false
+	hasSSE := false
+	for _, part := range strings.Split(accept, ",") {
+		mediaType := strings.TrimSpace(strings.Split(part, ";")[0])
+		switch mediaType {
+		case "application/json":
+			hasJSON = true
+		case "text/event-stream":
+			hasSSE = true
+		}
+	}
+	return hasJSON && hasSSE
+}
+
+func mustJSON(v any) string {
+	b, _ := json.MarshalIndent(v, "", "  ")
+	return string(b)
+}
+
+func writeJSON(w http.ResponseWriter, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(data)
+}
+
+func writeTransportError(w http.ResponseWriter, status int, code int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(response{JSONRPC: "2.0", ID: nil, Error: &rpcError{Code: code, Message: message}})
+}

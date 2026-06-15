@@ -271,11 +271,7 @@ Mutating MCP tools require a `username` argument on this local server. Tala does
 
 ## Codex Plugin
 
-This repo includes a local Codex plugin that packages the Tala MCP server and agent skill together:
-
-- `plugins/tala-project-tracker`
-
-Install the repo marketplace, then add the plugin:
+This repo includes a local Codex plugin at `plugins/tala-project-tracker` that packages the Tala MCP server and agent skill together. Install it from the Tala repo root:
 
 ```sh
 codex plugin marketplace add .
@@ -288,9 +284,9 @@ Then invoke the skill in Codex with:
 $tala-project-tracker plan this work in Tala and keep the issue updated
 ```
 
-The plugin starts the Tala MCP server over stdio against the current workspace's `.tala/tala.db`. Each Codex project gets its own database by default. Set `TALA_DB` to use an explicit database, `TALA_WORKSPACE_ROOT` to choose the project root used for the default database path, or `TALA_SOURCE_ROOT` if the plugin cannot infer the Tala source checkout used to run the MCP server.
+The installed plugin is self-contained: Codex caches the plugin package, then starts the Tala MCP server over stdio against the current workspace's `.tala/tala.db`. Each Codex project gets its own database by default and does not need a local `plugins/tala-project-tracker` directory. Set `TALA_DB` to use an explicit database, `TALA_WORKSPACE_ROOT` to choose the project root used for the default database path, or `TALA_SOURCE_ROOT` if the plugin should use a separate Tala source checkout.
 
-The plugin also includes a foreground web-server launcher for browser workflows:
+The repo checkout also includes a foreground web-server launcher for browser workflows:
 
 ```sh
 plugins/tala-project-tracker/scripts/tala-web-server.sh
@@ -311,7 +307,7 @@ Release the repo-local plugin from the checkout with the helper script:
 scripts/release-codex-plugin.sh
 ```
 
-The script validates `plugins/tala-project-tracker`, checks `.agents/plugins/marketplace.json`, bumps the plugin `+codex.<timestamp>` cachebuster, runs `go test ./...`, refreshes the repo marketplace, and reinstalls `tala-project-tracker@tala`.
+The script refreshes the packaged Tala source inside `plugins/tala-project-tracker`, validates the plugin package, checks `.agents/plugins/marketplace.json`, verifies the MCP launcher from outside the checkout, bumps the plugin `+codex.<timestamp>` cachebuster, runs tests for both the repo and packaged plugin module, refreshes the repo marketplace, reinstalls `tala-project-tracker@tala`, and verifies the installed launcher.
 
 Use a dry run before releasing:
 
