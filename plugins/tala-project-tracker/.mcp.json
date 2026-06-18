@@ -4,7 +4,7 @@
       "command": "sh",
       "args": [
         "-c",
-        "for root in \"${PLUGIN_ROOT:-}\" \"${TALA_SOURCE_ROOT:-}\" \"$(pwd -P)/plugins/tala-project-tracker\"; do if [ -n \"$root\" ] && [ -x \"$root/scripts/tala-mcp-stdio.sh\" ]; then exec \"$root/scripts/tala-mcp-stdio.sh\" \"$@\"; fi; done; printf '%s\\n' 'Unable to locate Tala plugin files. Set PLUGIN_ROOT, set TALA_SOURCE_ROOT, or run from a workspace with plugins/tala-project-tracker.' >&2; exit 1",
+        "for root in \"${PLUGIN_ROOT:-}\" \"${TALA_SOURCE_ROOT:-}\" \"$(pwd -P)/plugins/tala-project-tracker\" \"${CODEX_HOME:-$HOME/.codex}/plugins/cache\"/*/tala-project-tracker/* \"${CODEX_HOME:-$HOME/.codex}/.tmp/marketplaces\"/*/plugins/tala-project-tracker; do if [ -n \"$root\" ] && [ -x \"$root/scripts/tala-mcp-stdio.sh\" ]; then exec \"$root/scripts/tala-mcp-stdio.sh\" \"$@\"; fi; done; printf '%s\\n' 'Unable to locate Tala plugin files. Set PLUGIN_ROOT, set TALA_SOURCE_ROOT, or install tala-project-tracker in Codex.' >&2; exit 1",
         "tala-mcp-stdio"
       ]
     }
