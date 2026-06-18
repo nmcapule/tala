@@ -271,7 +271,21 @@ Mutating MCP tools require a `username` argument on this local server. Tala does
 
 ## Codex Plugin
 
-This repo includes a local Codex plugin at `plugins/tala-project-tracker` that packages the Tala MCP server and agent skill together. Install it from the Tala repo root:
+This repo includes a Codex plugin at `plugins/tala-project-tracker` that packages the Tala MCP server and agent skill together. Most users should install it from the GitHub marketplace source:
+
+```sh
+codex plugin marketplace add https://github.com/nmcapule/tala.git --ref main --sparse .agents/plugins --sparse plugins/tala-project-tracker
+codex plugin add tala-project-tracker@tala
+```
+
+Existing users can pull the latest marketplace source and reinstall the plugin with:
+
+```sh
+codex plugin marketplace upgrade tala
+codex plugin add tala-project-tracker@tala
+```
+
+For local development from a checkout, install it from the Tala repo root:
 
 ```sh
 codex plugin marketplace add .
