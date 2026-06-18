@@ -36,7 +36,7 @@ verify-production-binary:
 	scripts/verify-production-binary.sh
 
 smoke:
-	scripts/smoke.sh $(SMOKE_URL)
+	TALA_SMOKE_DB=$(TALA_SMOKE_DB) scripts/smoke.sh $(SMOKE_URL)
 
 browser-smoke:
 	TALA_SMOKE_DB=$(TALA_SMOKE_DB) scripts/browser-smoke.sh $(SMOKE_URL)

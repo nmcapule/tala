@@ -39,10 +39,10 @@ Issue descriptions and comments are always Markdown source. The UI renders Markd
 - Frontend: React + Vite.
 - UI styling: local CSS modules/patterns in `web/src/styles.css`, shared React components, and lucide icons, aligned with the Stitch design system.
 - REST API: endpoint tables documented in this design.
-- MCP: served by the same Go process as the web frontend and REST API.
-- MCP transport: Streamable HTTP-compatible JSON-RPC at `/mcp`.
+- MCP: served by the `cmd/tala-mcp-stdio` command over stdio against the configured SQLite database.
+- MCP transport: standard MCP stdio framing, including JSON-lines compatibility for local tests and simple clients.
 
-The v1 MCP HTTP endpoint intentionally supports POST requests only. It uses the Streamable HTTP media types and protocol version header, rejects non-local `Origin` values, binds local deployments to `127.0.0.1` by default, and treats stronger authentication as future work. GET/SSE transport support is out of scope for v1 unless a future client integration requires it.
+The web server intentionally does not expose MCP over HTTP. Browser and REST workflows use the Go web server, while agent workflows launch `tala-mcp-stdio` directly or through the repo-local Codex plugin.
 
 References:
 
@@ -332,7 +332,7 @@ Common error codes:
 
 ## MCP Interface
 
-The MCP server is exposed at `/mcp` using Streamable HTTP-compatible JSON-RPC over POST. It advertises tools and resources, returns `405 Method Not Allowed` for GET and other unsupported HTTP methods, and includes `Allow: POST` on those responses.
+The MCP server is exposed only by `cmd/tala-mcp-stdio` over stdio. It advertises tools and resources through JSON-RPC initialize, tool listing/calls, resource listing, resource-template listing, and resource reads.
 
 MCP mutating tools require an explicit `username` argument. Tala v1 has no MCP session identity, so tools do not infer or default usernames from transport metadata.
 

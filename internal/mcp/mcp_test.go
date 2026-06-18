@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +13,16 @@ import (
 	"tala/internal/domain"
 	"tala/internal/store"
 )
+
+const (
+	statusOK       = 200
+	statusAccepted = 202
+)
+
+type testRPCResponse struct {
+	Code int
+	Body *bytes.Buffer
+}
 
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
@@ -49,16 +57,13 @@ func newTestServerWithUploads(t *testing.T) (*Server, string) {
 func TestMCPInitializeAdvertisesServerCapabilities(t *testing.T) {
 	server := newTestServer(t)
 
-	res := rpcRequest(t, server, "http://127.0.0.1:8080", "initialize", map[string]any{
+	res := rpcRequest(t, server, "initialize", map[string]any{
 		"protocolVersion": "2025-06-18",
 		"clientInfo":      map[string]any{"name": "tala-test", "version": "0.0.0"},
 		"capabilities":    map[string]any{},
 	})
-	if res.Code != http.StatusOK {
+	if res.Code != statusOK {
 		t.Fatalf("initialize failed: %d %s", res.Code, res.Body.String())
-	}
-	if got := res.Header().Get("MCP-Protocol-Version"); got != "2025-06-18" {
-		t.Fatalf("expected protocol version response header, got %q", got)
 	}
 
 	var body map[string]any
@@ -83,38 +88,11 @@ func TestMCPInitializeAdvertisesServerCapabilities(t *testing.T) {
 	}
 }
 
-func TestMCPOriginToolsAndResources(t *testing.T) {
+func TestMCPToolsAndResources(t *testing.T) {
 	server := newTestServer(t)
 
-	getReq := httptest.NewRequest(http.MethodGet, "/mcp", nil)
-	getReq.Header.Set("Origin", "http://127.0.0.1:8080")
-	getRes := httptest.NewRecorder()
-	server.ServeHTTP(getRes, getReq)
-	if getRes.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected GET /mcp to return 405, got %d %s", getRes.Code, getRes.Body.String())
-	}
-	if allow := getRes.Header().Get("Allow"); allow != http.MethodPost {
-		t.Fatalf("expected Allow: POST for unsupported MCP method, got %q", allow)
-	}
-	assertTransportError(t, getRes, "MCP endpoint only supports POST")
-
-	forbidden := rpcRequest(t, server, "https://example.com", "tools/list", map[string]any{})
-	if forbidden.Code != http.StatusForbidden {
-		t.Fatalf("expected forbidden origin, got %d", forbidden.Code)
-	}
-	assertTransportError(t, forbidden, "Forbidden origin")
-	forbiddenScheme := rpcRequest(t, server, "file://localhost", "tools/list", map[string]any{})
-	if forbiddenScheme.Code != http.StatusForbidden {
-		t.Fatalf("expected forbidden non-HTTP local origin, got %d", forbiddenScheme.Code)
-	}
-	assertTransportError(t, forbiddenScheme, "Forbidden origin")
-	secureLocal := rpcRequest(t, server, "https://localhost", "tools/list", map[string]any{})
-	if secureLocal.Code != http.StatusOK {
-		t.Fatalf("expected HTTPS localhost origin to be allowed, got %d %s", secureLocal.Code, secureLocal.Body.String())
-	}
-
-	tools := rpcRequest(t, server, "http://127.0.0.1:8080", "tools/list", map[string]any{})
-	if tools.Code != http.StatusOK {
+	tools := rpcRequest(t, server, "tools/list", map[string]any{})
+	if tools.Code != statusOK {
 		t.Fatalf("tools/list failed: %d %s", tools.Code, tools.Body.String())
 	}
 	var toolsBody map[string]any
@@ -153,8 +131,8 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 	assertToolPropDescriptionContains(t, toolList, "issue_search", "blocker_of", "blocked")
 	assertRequiredToolProp(t, toolList, "image_upload", "path")
 
-	resources := rpcRequest(t, server, "http://127.0.0.1:8080", "resources/list", map[string]any{})
-	if resources.Code != http.StatusOK {
+	resources := rpcRequest(t, server, "resources/list", map[string]any{})
+	if resources.Code != statusOK {
 		t.Fatalf("resources/list failed: %d %s", resources.Code, resources.Body.String())
 	}
 	var resourcesBody map[string]any
@@ -169,8 +147,8 @@ func TestMCPOriginToolsAndResources(t *testing.T) {
 		}
 	}
 
-	templates := rpcRequest(t, server, "http://127.0.0.1:8080", "resources/templates/list", map[string]any{})
-	if templates.Code != http.StatusOK {
+	templates := rpcRequest(t, server, "resources/templates/list", map[string]any{})
+	if templates.Code != statusOK {
 		t.Fatalf("resources/templates/list failed: %d %s", templates.Code, templates.Body.String())
 	}
 	var templatesBody map[string]any
@@ -601,16 +579,16 @@ func TestMCPLazyInitializationCreatesDatabaseOnlyAfterInitTool(t *testing.T) {
 		}
 	})
 
-	res := rpcRequest(t, server, "", "initialize", map[string]any{
+	res := rpcRequest(t, server, "initialize", map[string]any{
 		"protocolVersion": "2025-06-18",
 		"clientInfo":      map[string]any{"name": "tala-test", "version": "0.0.0"},
 		"capabilities":    map[string]any{},
 	})
-	if res.Code != http.StatusOK {
+	if res.Code != statusOK {
 		t.Fatalf("initialize failed: %d %s", res.Code, res.Body.String())
 	}
-	tools := rpcRequest(t, server, "", "tools/list", map[string]any{})
-	if tools.Code != http.StatusOK {
+	tools := rpcRequest(t, server, "tools/list", map[string]any{})
+	if tools.Code != statusOK {
 		t.Fatalf("tools/list failed: %d %s", tools.Code, tools.Body.String())
 	}
 	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
@@ -619,8 +597,8 @@ func TestMCPLazyInitializationCreatesDatabaseOnlyAfterInitTool(t *testing.T) {
 
 	searchBeforeInit := callToolExpectToolError(t, server, "issue_search", map[string]any{})
 	assertToolAppError(t, searchBeforeInit, domain.CodeConflict, "database")
-	resourceBeforeInit := rpcRequest(t, server, "", "resources/read", map[string]any{"uri": "tala://board"})
-	if resourceBeforeInit.Code != http.StatusOK {
+	resourceBeforeInit := rpcRequest(t, server, "resources/read", map[string]any{"uri": "tala://board"})
+	if resourceBeforeInit.Code != statusOK {
 		t.Fatalf("resource read before init failed: %d %s", resourceBeforeInit.Code, resourceBeforeInit.Body.String())
 	}
 	var resourceBody map[string]any
@@ -854,9 +832,9 @@ func TestMCPResourceReadNotFoundUsesResourceErrorCode(t *testing.T) {
 		{name: "missing issue resource", uri: "tala://issues/issue_missing"},
 		{name: "missing issue tree resource", uri: "tala://issues/issue_missing/tree"},
 	} {
-		res := rpcRequest(t, server, "", "resources/read", map[string]any{"uri": tt.uri})
-		if res.Code != http.StatusOK {
-			t.Fatalf("%s: expected JSON-RPC response, got HTTP %d: %s", tt.name, res.Code, res.Body.String())
+		res := rpcRequest(t, server, "resources/read", map[string]any{"uri": tt.uri})
+		if res.Code != statusOK {
+			t.Fatalf("%s: expected JSON-RPC response, got %d: %s", tt.name, res.Code, res.Body.String())
 		}
 		var body map[string]any
 		decodeRecorder(t, res, &body)
@@ -1354,48 +1332,12 @@ func containsCompactIssueID(issues []compactResourceIssue, id string) bool {
 	return false
 }
 
-func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
+func TestMCPJSONRPCMessageBehavior(t *testing.T) {
 	server := newTestServer(t)
 
-	getReq := httptest.NewRequest(http.MethodGet, "/mcp", nil)
-	getReq.Header.Set("Accept", "text/event-stream")
-	getRes := httptest.NewRecorder()
-	server.ServeHTTP(getRes, getReq)
-	if getRes.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected GET without SSE support to return 405, got %d", getRes.Code)
-	}
-	if got := getRes.Header().Get("MCP-Protocol-Version"); got != "2025-06-18" {
-		t.Fatalf("expected protocol version response header, got %q", got)
-	}
-	if allow := getRes.Header().Get("Allow"); allow != http.MethodPost {
-		t.Fatalf("expected Allow: POST for unsupported MCP method, got %q", allow)
-	}
-	assertTransportError(t, getRes, "MCP endpoint only supports POST")
-
-	badVersion := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)))
-	badVersion.Header.Set("Accept", "application/json, text/event-stream")
-	badVersion.Header.Set("MCP-Protocol-Version", "1999-01-01")
-	badVersionRes := httptest.NewRecorder()
-	server.ServeHTTP(badVersionRes, badVersion)
-	if badVersionRes.Code != http.StatusBadRequest {
-		t.Fatalf("expected invalid protocol version to return 400, got %d", badVersionRes.Code)
-	}
-	assertTransportError(t, badVersionRes, "Unsupported MCP protocol version")
-
-	missingAccept := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)))
-	missingAcceptRes := httptest.NewRecorder()
-	server.ServeHTTP(missingAcceptRes, missingAccept)
-	if missingAcceptRes.Code != http.StatusNotAcceptable {
-		t.Fatalf("expected missing Accept to return 406, got %d", missingAcceptRes.Code)
-	}
-	assertTransportError(t, missingAcceptRes, "MCP POST requires Accept: application/json, text/event-stream")
-
-	trailingJSON := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"} {}`)))
-	trailingJSON.Header.Set("Accept", "application/json, text/event-stream")
-	trailingJSONRes := httptest.NewRecorder()
-	server.ServeHTTP(trailingJSONRes, trailingJSON)
-	if trailingJSONRes.Code != http.StatusOK {
-		t.Fatalf("expected JSON-RPC parse error response to use HTTP 200, got %d", trailingJSONRes.Code)
+	trailingJSONRes := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":1,"method":"tools/list"} {}`)
+	if trailingJSONRes.Code != statusOK {
+		t.Fatalf("expected JSON-RPC parse error response, got %d", trailingJSONRes.Code)
 	}
 	var trailingBody response
 	decodeRecorder(t, trailingJSONRes, &trailingBody)
@@ -1408,12 +1350,9 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 		t.Fatalf("expected parse error response to include id:null, got %#v", trailingRaw)
 	}
 
-	nullID := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(`{"jsonrpc":"2.0","id":null,"method":"tools/list","params":{}}`)))
-	nullID.Header.Set("Accept", "application/json, text/event-stream")
-	nullIDRes := httptest.NewRecorder()
-	server.ServeHTTP(nullIDRes, nullID)
-	if nullIDRes.Code != http.StatusOK {
-		t.Fatalf("expected null id request to return 200, got %d %s", nullIDRes.Code, nullIDRes.Body.String())
+	nullIDRes := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":null,"method":"tools/list","params":{}}`)
+	if nullIDRes.Code != statusOK {
+		t.Fatalf("expected null id request response, got %d %s", nullIDRes.Code, nullIDRes.Body.String())
 	}
 	var nullIDRaw map[string]any
 	decodeRecorder(t, nullIDRes, &nullIDRaw)
@@ -1423,7 +1362,7 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 
 	stringID := "agent-request-001"
 	stringIDRes := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":"`+stringID+`","method":"tools/list","params":{}}`)
-	if stringIDRes.Code != http.StatusOK {
+	if stringIDRes.Code != statusOK {
 		t.Fatalf("expected string id request to return 200, got %d %s", stringIDRes.Code, stringIDRes.Body.String())
 	}
 	var stringIDRaw map[string]any
@@ -1434,7 +1373,7 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 
 	largeID := "9007199254740993"
 	largeIDRes := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":`+largeID+`,"method":"tools/list","params":{}}`)
-	if largeIDRes.Code != http.StatusOK {
+	if largeIDRes.Code != statusOK {
 		t.Fatalf("expected large integer id request to return 200, got %d %s", largeIDRes.Code, largeIDRes.Body.String())
 	}
 	if !bytes.Contains(largeIDRes.Body.Bytes(), []byte(`"id":`+largeID)) {
@@ -1448,12 +1387,9 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 		"batch request":   `[{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}]`,
 		"string request":  `"not an object"`,
 	} {
-		req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(payload)))
-		req.Header.Set("Accept", "application/json, text/event-stream")
-		res := httptest.NewRecorder()
-		server.ServeHTTP(res, req)
-		if res.Code != http.StatusOK {
-			t.Fatalf("%s: expected invalid request response to use HTTP 200, got %d", name, res.Code)
+		res := rawRPCRequest(t, server, payload)
+		if res.Code != statusOK {
+			t.Fatalf("%s: expected invalid request response, got %d", name, res.Code)
 		}
 		var body response
 		decodeRecorder(t, res, &body)
@@ -1463,8 +1399,8 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 	}
 
 	badParams := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":"bad-params","method":"resources/read","params":[]}`)
-	if badParams.Code != http.StatusOK {
-		t.Fatalf("expected invalid params response to use HTTP 200, got %d %s", badParams.Code, badParams.Body.String())
+	if badParams.Code != statusOK {
+		t.Fatalf("expected invalid params response, got %d %s", badParams.Code, badParams.Body.String())
 	}
 	var badParamsBody response
 	decodeRecorder(t, badParams, &badParamsBody)
@@ -1472,12 +1408,9 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 		t.Fatalf("expected invalid params error with echoed string id, got %#v", badParamsBody)
 	}
 
-	notification := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)))
-	notification.Header.Set("Accept", "application/json, text/event-stream")
-	notificationRes := httptest.NewRecorder()
-	server.ServeHTTP(notificationRes, notification)
-	if notificationRes.Code != http.StatusAccepted {
-		t.Fatalf("expected notification to return 202, got %d %s", notificationRes.Code, notificationRes.Body.String())
+	notificationRes := rawRPCRequest(t, server, `{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+	if notificationRes.Code != statusAccepted {
+		t.Fatalf("expected notification to produce no response, got %d %s", notificationRes.Code, notificationRes.Body.String())
 	}
 	if notificationRes.Body.Len() != 0 {
 		t.Fatalf("expected notification response body to be empty, got %q", notificationRes.Body.String())
@@ -1488,12 +1421,9 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 		"error response":   `{"jsonrpc":"2.0","id":100,"error":{"code":-32000,"message":"client-side failure"}}`,
 		"null id response": `{"jsonrpc":"2.0","id":null,"result":{"ok":true}}`,
 	} {
-		req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(payload)))
-		req.Header.Set("Accept", "application/json, text/event-stream")
-		res := httptest.NewRecorder()
-		server.ServeHTTP(res, req)
-		if res.Code != http.StatusAccepted {
-			t.Fatalf("%s: expected client JSON-RPC response to return 202, got %d %s", name, res.Code, res.Body.String())
+		res := rawRPCRequest(t, server, payload)
+		if res.Code != statusAccepted {
+			t.Fatalf("%s: expected client JSON-RPC response to produce no response, got %d %s", name, res.Code, res.Body.String())
 		}
 		if res.Body.Len() != 0 {
 			t.Fatalf("%s: expected client JSON-RPC response body to be empty, got %q", name, res.Body.String())
@@ -1512,12 +1442,9 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 		"response result+error":   `{"jsonrpc":"2.0","id":102,"result":{"ok":true},"error":{"code":-32000,"message":"bad"}}`,
 		"notification with error": `{"jsonrpc":"2.0","method":"notifications/initialized","error":{"code":-32000,"message":"bad"}}`,
 	} {
-		req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(payload)))
-		req.Header.Set("Accept", "application/json, text/event-stream")
-		res := httptest.NewRecorder()
-		server.ServeHTTP(res, req)
-		if res.Code != http.StatusOK {
-			t.Fatalf("%s: expected invalid JSON-RPC envelope response to use HTTP 200, got %d", name, res.Code)
+		res := rawRPCRequest(t, server, payload)
+		if res.Code != statusOK {
+			t.Fatalf("%s: expected invalid JSON-RPC envelope response, got %d", name, res.Code)
 		}
 		var body response
 		decodeRecorder(t, res, &body)
@@ -1526,12 +1453,9 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 		}
 	}
 
-	unknownNotification := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(`{"jsonrpc":"2.0","method":"tools/call","params":{"name":"unknown","arguments":{}}}`)))
-	unknownNotification.Header.Set("Accept", "application/json, text/event-stream")
-	unknownNotificationRes := httptest.NewRecorder()
-	server.ServeHTTP(unknownNotificationRes, unknownNotification)
-	if unknownNotificationRes.Code != http.StatusAccepted {
-		t.Fatalf("expected invalid notification to return 202, got %d %s", unknownNotificationRes.Code, unknownNotificationRes.Body.String())
+	unknownNotificationRes := rawRPCRequest(t, server, `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"unknown","arguments":{}}}`)
+	if unknownNotificationRes.Code != statusAccepted {
+		t.Fatalf("expected invalid notification to produce no response, got %d %s", unknownNotificationRes.Code, unknownNotificationRes.Body.String())
 	}
 	if unknownNotificationRes.Body.Len() != 0 {
 		t.Fatalf("expected invalid notification response body to be empty, got %q", unknownNotificationRes.Body.String())
@@ -1541,19 +1465,16 @@ func TestMCPStreamableHTTPTransportBehavior(t *testing.T) {
 func TestMCPNonNotificationWithoutIDDoesNotMutate(t *testing.T) {
 	server := newTestServer(t)
 
-	createNotification := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(`{
+	createNotificationRes := rawRPCRequest(t, server, `{
 		"jsonrpc":"2.0",
 		"method":"tools/call",
 		"params":{
 			"name":"issue_create",
 			"arguments":{"username":"agent","title":"Invisible notification issue","priority":"P1"}
 		}
-	}`)))
-	createNotification.Header.Set("Accept", "application/json, text/event-stream")
-	createNotificationRes := httptest.NewRecorder()
-	server.ServeHTTP(createNotificationRes, createNotification)
-	if createNotificationRes.Code != http.StatusAccepted {
-		t.Fatalf("expected non-notification message without id to return 202, got %d %s", createNotificationRes.Code, createNotificationRes.Body.String())
+	}`)
+	if createNotificationRes.Code != statusAccepted {
+		t.Fatalf("expected non-notification message without id to produce no response, got %d %s", createNotificationRes.Code, createNotificationRes.Body.String())
 	}
 	if createNotificationRes.Body.Len() != 0 {
 		t.Fatalf("expected non-notification message without id response body to be empty, got %q", createNotificationRes.Body.String())
@@ -1571,7 +1492,7 @@ func TestMCPToolCallArgumentsAreOptionalObject(t *testing.T) {
 	server := newTestServer(t)
 
 	omittedSearch := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"issue_search"}}`)
-	if omittedSearch.Code != http.StatusOK {
+	if omittedSearch.Code != statusOK {
 		t.Fatalf("expected omitted tool arguments to return 200, got %d %s", omittedSearch.Code, omittedSearch.Body.String())
 	}
 	var searchBody map[string]any
@@ -1588,7 +1509,7 @@ func TestMCPToolCallArgumentsAreOptionalObject(t *testing.T) {
 	}
 
 	omittedRequired := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"issue_get"}}`)
-	if omittedRequired.Code != http.StatusOK {
+	if omittedRequired.Code != statusOK {
 		t.Fatalf("expected omitted required arguments to return 200, got %d %s", omittedRequired.Code, omittedRequired.Body.String())
 	}
 	var requiredBody map[string]any
@@ -1599,7 +1520,7 @@ func TestMCPToolCallArgumentsAreOptionalObject(t *testing.T) {
 	assertToolAppError(t, requiredBody, domain.CodeValidationError, "issue_id")
 
 	nullArguments := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"issue_search","arguments":null}}`)
-	if nullArguments.Code != http.StatusOK {
+	if nullArguments.Code != statusOK {
 		t.Fatalf("expected null tool arguments to return JSON-RPC error response, got %d %s", nullArguments.Code, nullArguments.Body.String())
 	}
 	var nullBody response
@@ -1624,8 +1545,8 @@ func TestMCPRequiredMethodParamsValidation(t *testing.T) {
 		"resources/read array":      `{"jsonrpc":"2.0","id":1,"method":"resources/read","params":[]}`,
 	} {
 		res := rawRPCRequest(t, server, payload)
-		if res.Code != http.StatusOK {
-			t.Fatalf("%s: expected invalid params to return HTTP 200, got %d %s", name, res.Code, res.Body.String())
+		if res.Code != statusOK {
+			t.Fatalf("%s: expected invalid params response, got %d %s", name, res.Code, res.Body.String())
 		}
 		var body response
 		decodeRecorder(t, res, &body)
@@ -1635,8 +1556,8 @@ func TestMCPRequiredMethodParamsValidation(t *testing.T) {
 	}
 
 	missingResource := rawRPCRequest(t, server, `{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"tala://issues/issue_missing"}}`)
-	if missingResource.Code != http.StatusOK {
-		t.Fatalf("expected missing resource read to return HTTP 200, got %d %s", missingResource.Code, missingResource.Body.String())
+	if missingResource.Code != statusOK {
+		t.Fatalf("expected missing resource read response, got %d %s", missingResource.Code, missingResource.Body.String())
 	}
 	var missingBody response
 	decodeRecorder(t, missingResource, &missingBody)
@@ -1647,8 +1568,8 @@ func TestMCPRequiredMethodParamsValidation(t *testing.T) {
 
 func callTool(t *testing.T, server *Server, name string, args map[string]any) map[string]any {
 	t.Helper()
-	res := rpcRequest(t, server, "", "tools/call", map[string]any{"name": name, "arguments": args})
-	if res.Code != http.StatusOK {
+	res := rpcRequest(t, server, "tools/call", map[string]any{"name": name, "arguments": args})
+	if res.Code != statusOK {
 		t.Fatalf("%s failed: %d %s", name, res.Code, res.Body.String())
 	}
 	var body map[string]any
@@ -1661,8 +1582,8 @@ func callTool(t *testing.T, server *Server, name string, args map[string]any) ma
 
 func callToolExpectError(t *testing.T, server *Server, name string, args map[string]any) map[string]any {
 	t.Helper()
-	res := rpcRequest(t, server, "", "tools/call", map[string]any{"name": name, "arguments": args})
-	if res.Code != http.StatusOK {
+	res := rpcRequest(t, server, "tools/call", map[string]any{"name": name, "arguments": args})
+	if res.Code != statusOK {
 		t.Fatalf("%s failed: %d %s", name, res.Code, res.Body.String())
 	}
 	var body map[string]any
@@ -1675,8 +1596,8 @@ func callToolExpectError(t *testing.T, server *Server, name string, args map[str
 
 func callToolExpectToolError(t *testing.T, server *Server, name string, args map[string]any) map[string]any {
 	t.Helper()
-	res := rpcRequest(t, server, "", "tools/call", map[string]any{"name": name, "arguments": args})
-	if res.Code != http.StatusOK {
+	res := rpcRequest(t, server, "tools/call", map[string]any{"name": name, "arguments": args})
+	if res.Code != statusOK {
 		t.Fatalf("%s failed: %d %s", name, res.Code, res.Body.String())
 	}
 	var body map[string]any
@@ -1723,25 +1644,10 @@ func assertToolAppError(t *testing.T, body map[string]any, code domain.ErrorCode
 	}
 }
 
-func assertTransportError(t *testing.T, res *httptest.ResponseRecorder, message string) {
-	t.Helper()
-	if contentType := res.Header().Get("Content-Type"); contentType != "application/json" {
-		t.Fatalf("expected JSON transport error response, got %q", contentType)
-	}
-	var body response
-	decodeRecorder(t, res, &body)
-	if body.JSONRPC != "2.0" || body.ID != nil || body.Error == nil {
-		t.Fatalf("expected JSON-RPC transport error with null id, got %#v", body)
-	}
-	if body.Error.Code != -32000 || body.Error.Message != message {
-		t.Fatalf("expected transport error -32000/%q, got %#v", message, body.Error)
-	}
-}
-
 func readResource(t *testing.T, server *Server, uri string) map[string]any {
 	t.Helper()
-	res := rpcRequest(t, server, "", "resources/read", map[string]any{"uri": uri})
-	if res.Code != http.StatusOK {
+	res := rpcRequest(t, server, "resources/read", map[string]any{"uri": uri})
+	if res.Code != statusOK {
 		t.Fatalf("resource read failed: %d %s", res.Code, res.Body.String())
 	}
 	var body map[string]any
@@ -1752,7 +1658,7 @@ func readResource(t *testing.T, server *Server, uri string) map[string]any {
 	return body
 }
 
-func rpcRequest(t *testing.T, server *Server, origin, method string, params map[string]any) *httptest.ResponseRecorder {
+func rpcRequest(t *testing.T, server *Server, method string, params map[string]any) *testRPCResponse {
 	t.Helper()
 	payload, err := json.Marshal(map[string]any{
 		"jsonrpc": "2.0",
@@ -1763,25 +1669,20 @@ func rpcRequest(t *testing.T, server *Server, origin, method string, params map[
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	if origin != "" {
-		req.Header.Set("Origin", origin)
-	}
-	res := httptest.NewRecorder()
-	server.ServeHTTP(res, req)
-	return res
+	return rawRPCRequest(t, server, string(payload))
 }
 
-func rawRPCRequest(t *testing.T, server *Server, payload string) *httptest.ResponseRecorder {
+func rawRPCRequest(t *testing.T, server *Server, payload string) *testRPCResponse {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(payload)))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	res := httptest.NewRecorder()
-	server.ServeHTTP(res, req)
-	return res
+	res, ok := server.processMessage(t.Context(), []byte(payload))
+	if !ok {
+		return &testRPCResponse{Code: statusAccepted, Body: bytes.NewBuffer(nil)}
+	}
+	body, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &testRPCResponse{Code: statusOK, Body: bytes.NewBuffer(body)}
 }
 
 func structuredID(t *testing.T, body map[string]any) string {
@@ -1815,7 +1716,7 @@ func resourceText(t *testing.T, body map[string]any) string {
 	return text
 }
 
-func decodeRecorder(t *testing.T, res *httptest.ResponseRecorder, dest any) {
+func decodeRecorder(t *testing.T, res *testRPCResponse, dest any) {
 	t.Helper()
 	if err := json.Unmarshal(res.Body.Bytes(), dest); err != nil {
 		t.Fatalf("decode %q: %v", res.Body.String(), err)

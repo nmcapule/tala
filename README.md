@@ -1,6 +1,6 @@
 # Tala
 
-Tala is a local-first issue tracker for human users and AI agents. It runs as a single Go server backed by SQLite, serves a mobile-first React/Vite frontend, exposes REST endpoints under `/api`, and exposes MCP JSON-RPC tools/resources at `/mcp`.
+Tala is a local-first issue tracker for human users and AI agents. It runs as a Go server backed by SQLite, serves a mobile-first React/Vite frontend, exposes REST endpoints under `/api`, and provides MCP JSON-RPC tools/resources through the `tala-mcp-stdio` command.
 
 Production frontend assets are embedded from `cmd/tala/static`, so the Go server can serve the built app without a separate Node/Bun process.
 
@@ -81,7 +81,7 @@ Run the Vite frontend separately during frontend work:
 bun run dev
 ```
 
-The Vite dev server proxies `/api`, `/mcp`, and `/uploads` to `127.0.0.1:8080`, so start the Go server on that port when using the frontend dev server:
+The Vite dev server proxies `/api` and `/uploads` to `127.0.0.1:8080`, so start the Go server on that port when using the frontend dev server:
 
 ```sh
 go run ./cmd/tala -addr 127.0.0.1:8080 -db .tala/tala.db
@@ -89,7 +89,7 @@ go run ./cmd/tala -addr 127.0.0.1:8080 -db .tala/tala.db
 
 ## Security Model
 
-Tala v1 is a local-first tool and does not implement server-side accounts, API keys, authorization checks, or per-user data isolation. The username field records who performed a mutation, but it is not authentication. Anyone who can reach the HTTP server can read and mutate issues, comments, tags, uploads, REST endpoints, and MCP tools.
+Tala v1 is a local-first tool and does not implement server-side accounts, API keys, authorization checks, or per-user data isolation. The username field records who performed a mutation, but it is not authentication. Anyone who can reach the HTTP server can read and mutate issues, comments, tags, uploads, and REST endpoints. Anyone who can launch the stdio MCP command against a database can read and mutate through MCP tools.
 
 Keep the server bound to loopback for normal use:
 
@@ -230,15 +230,15 @@ Mutating REST requests require `X-Tala-Username`.
 
 ## MCP Surface
 
-The MCP endpoint is `/mcp`. It supports JSON-RPC initialize, tool listing/calls, resource listing, resource-template listing, and resource reads.
+The MCP surface is available only over stdio through `cmd/tala-mcp-stdio`. It supports JSON-RPC initialize, tool listing/calls, resource listing, resource-template listing, and resource reads.
 
-For Codex integration, the repo-local `tala-project-tracker` plugin starts the same MCP surface over stdio:
+For Codex integration, the repo-local `tala-project-tracker` plugin starts this MCP server over stdio:
 
 ```sh
 go run ./cmd/tala-mcp-stdio -db .tala/tala.db
 ```
 
-Use the HTTP `/mcp` endpoint when running the full Tala server for browser, REST, or smoke-test workflows. Use the stdio command for clients, such as Codex, that launch MCP servers directly.
+Use the stdio command for clients, such as Codex, that launch MCP servers directly. The web server does not expose MCP over HTTP.
 
 Tools:
 

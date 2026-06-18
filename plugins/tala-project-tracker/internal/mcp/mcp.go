@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -161,39 +159,6 @@ type rpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 	Data    any    `json:"data,omitempty"`
-}
-
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !allowedOrigin(r.Header.Get("Origin")) {
-		writeTransportError(w, http.StatusForbidden, -32000, "Forbidden origin")
-		return
-	}
-	w.Header().Set("MCP-Protocol-Version", "2025-06-18")
-	if !validProtocolVersion(r.Header.Get("MCP-Protocol-Version")) {
-		writeTransportError(w, http.StatusBadRequest, -32000, "Unsupported MCP protocol version")
-		return
-	}
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		writeTransportError(w, http.StatusMethodNotAllowed, -32000, "MCP endpoint only supports POST")
-		return
-	}
-	if !validPostAccept(r.Header.Values("Accept")) {
-		writeTransportError(w, http.StatusNotAcceptable, -32000, "MCP POST requires Accept: application/json, text/event-stream")
-		return
-	}
-	defer r.Body.Close()
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		writeJSON(w, response{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "Parse error"}})
-		return
-	}
-	res, ok := s.processMessage(r.Context(), body)
-	if !ok {
-		w.WriteHeader(http.StatusAccepted)
-		return
-	}
-	writeJSON(w, res)
 }
 
 func (s *Server) processMessage(ctx context.Context, body []byte) (response, bool) {
@@ -1488,61 +1453,7 @@ func requireUsername(username string) error {
 	return nil
 }
 
-func allowedOrigin(origin string) bool {
-	if origin == "" {
-		return true
-	}
-	parsed, err := url.Parse(origin)
-	if err != nil {
-		return false
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return false
-	}
-	host := parsed.Hostname()
-	return host == "127.0.0.1" || host == "localhost" || host == "::1"
-}
-
-func validProtocolVersion(version string) bool {
-	switch strings.TrimSpace(version) {
-	case "", "2025-03-26", "2025-06-18":
-		return true
-	default:
-		return false
-	}
-}
-
-func validPostAccept(values []string) bool {
-	accept := strings.Join(values, ",")
-	if strings.TrimSpace(accept) == "" {
-		return false
-	}
-	hasJSON := false
-	hasSSE := false
-	for _, part := range strings.Split(accept, ",") {
-		mediaType := strings.TrimSpace(strings.Split(part, ";")[0])
-		switch mediaType {
-		case "application/json":
-			hasJSON = true
-		case "text/event-stream":
-			hasSSE = true
-		}
-	}
-	return hasJSON && hasSSE
-}
-
 func mustJSON(v any) string {
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return string(b)
-}
-
-func writeJSON(w http.ResponseWriter, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(data)
-}
-
-func writeTransportError(w http.ResponseWriter, status int, code int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(response{JSONRPC: "2.0", ID: nil, Error: &rpcError{Code: code, Message: message}})
 }

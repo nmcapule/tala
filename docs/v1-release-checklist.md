@@ -8,7 +8,7 @@ Use this checklist before cutting a v1 release candidate. Tala v1 is local-first
 - The product behavior still matches `docs/issue-tracker-design.md`, including REST, MCP, and frontend workflows.
 - Production frontend assets under `cmd/tala/static` are rebuilt from the current React source.
 - The Go binary builds and serves the embedded frontend without a separate Vite process.
-- REST, MCP, and browser smoke checks pass against a disposable database.
+- REST, stdio MCP, and browser smoke checks pass against a disposable database.
 - The project `.tala/tala.db` contains no temporary smoke records.
 - All P0 release blockers are completed or explicitly canceled with a rationale.
 
@@ -30,10 +30,10 @@ Then run the smoke checks against a disposable database. Start the server in one
 go run ./cmd/tala -addr 127.0.0.1:8081 -db /tmp/tala-v1-candidate.db
 ```
 
-Run REST and MCP smoke coverage from another shell:
+Run REST and stdio MCP smoke coverage from another shell. Pass the same database path so stdio MCP checks read and mutate the server's disposable database:
 
 ```sh
-make smoke SMOKE_URL=http://127.0.0.1:8081
+make smoke SMOKE_URL=http://127.0.0.1:8081 TALA_SMOKE_DB=/tmp/tala-v1-candidate.db
 ```
 
 Run browser smoke coverage against the same disposable database:
@@ -60,10 +60,10 @@ Run the server against a disposable database:
 go run ./cmd/tala -addr 127.0.0.1:8081 -db /tmp/tala-v1-candidate.db
 ```
 
-In another shell, run REST and MCP smoke checks:
+In another shell, run REST and stdio MCP smoke checks:
 
 ```sh
-make smoke SMOKE_URL=http://127.0.0.1:8081
+make smoke SMOKE_URL=http://127.0.0.1:8081 TALA_SMOKE_DB=/tmp/tala-v1-candidate.db
 ```
 
 Run browser smoke checks against the same disposable database. Set `TALA_SMOKE_DB` so the script can clean up records it creates:

@@ -9,13 +9,13 @@ Implementation evidence:
 - REST routing and handlers: `internal/httpapi/http.go`
 - Domain service validation and mutations: `internal/app/service.go`
 - SQLite persistence and hydration: `internal/store/store.go`
-- MCP transport, tools, and resources: `internal/mcp/mcp.go`
+- MCP tools/resources and stdio transport: `internal/mcp/mcp.go`, `internal/mcp/stdio.go`, `cmd/tala-mcp-stdio`
 - Frontend screens and shared components: `web/src/App.tsx`, `web/src/features/`, `web/src/components/common.tsx`
 - Verification coverage: `internal/**/*_test.go`, `scripts/smoke.sh`, `scripts/browser-smoke.sh`
 
 ## Summary
 
-The current implementation matches the design doc's core product model: a local-first Go and SQLite issue tracker with REST, MCP, and React frontend surfaces over one shared issue model. Issues, tags, comments, parent-child relationships, blocker relationships, Markdown source preservation, image upload links, and computed blocked state are implemented and covered by automated Go tests, REST/MCP smoke coverage, and browser smoke coverage.
+The current implementation matches the design doc's core product model: a local-first Go and SQLite issue tracker with REST, stdio MCP, and React frontend surfaces over one shared issue model. Issues, tags, comments, parent-child relationships, blocker relationships, Markdown source preservation, image upload links, and computed blocked state are implemented and covered by automated Go tests, REST/MCP smoke coverage, and browser smoke coverage.
 
 The audit found no open P0/P1 runtime gap against the design. The remaining gaps are design drift or follow-up contract decisions and have been filed as lower-priority issues.
 
@@ -42,7 +42,7 @@ The audit found no open P0/P1 runtime gap against the design. The remaining gaps
 
 | Drift | Current state | Filed follow-up |
 | --- | --- | --- |
-| MCP transport and username defaults | `/mcp` currently supports POST only and mutating tools require explicit `username`; docs mention GET where supported and optional username defaulting. Smoke/release docs already assume explicit username. | `issue_cfd39c9f-1ec8-4054-b414-93b2f23df441` |
+| MCP username defaults | Stdio MCP mutating tools require explicit `username`; optional username defaulting remains a future session-design decision. | `issue_807d80b4-5665-4d21-8778-6fef7a286bb3` |
 | Frontend styling stack | Design doc names Tailwind CSS and shadcn/ui. Current app uses plain CSS, shared local React components, and lucide icons while following the Stitch visual direction. | `issue_7dc2a2a6-11db-4b19-b078-4c4a884d6969` |
 | Store implementation notes | Design doc says `sqlc` generated query methods. Current store uses `database/sql` with hand-written SQL and transaction wrappers. | `issue_3001631b-c709-4f5e-a9c3-ab4173212f02` |
 
@@ -51,7 +51,7 @@ The audit found no open P0/P1 runtime gap against the design. The remaining gaps
 The design doc's testing strategy is materially covered, but not always by the exact test type named in the design:
 
 - Domain, REST, MCP, and store behavior have Go unit/integration tests.
-- REST and MCP smoke behavior is covered by `scripts/smoke.sh`.
+- REST and stdio MCP smoke behavior is covered by `scripts/smoke.sh`.
 - Frontend behavior is covered through `scripts/browser-smoke.sh` rather than a dedicated frontend unit-test runner.
 - The root `package.json` currently provides `build`, `typecheck`, `dev`, and `preview`; it does not define a Vitest/Testing Library suite.
 

@@ -14,7 +14,6 @@ import (
 
 	"tala/internal/app"
 	"tala/internal/domain"
-	"tala/internal/mcp"
 )
 
 type Server struct {
@@ -51,8 +50,6 @@ func (s *Server) Routes() http.Handler {
 		r.Patch("/tags/{id}", s.updateTag)
 	})
 	r.Get("/uploads/images/{filename}", s.serveUploadedImage)
-	mcpServer := mcp.New(s.service)
-	r.Handle("/mcp", mcpServer)
 	r.NotFound(s.notFound)
 	r.MethodNotAllowed(s.methodNotAllowed)
 	return r
